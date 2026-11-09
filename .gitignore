@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Project related
+*.zip
+*.pdf
+*.odt
+*.jsonl
+*.ttf
+*.TTF
+*.otf
+*.ttc
+*.png
+*.xlsx
+dictionaries-04-11-2026
+test/
