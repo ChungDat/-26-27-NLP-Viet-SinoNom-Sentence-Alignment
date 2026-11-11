@@ -31,17 +31,14 @@ def select_pages(start: int, end: int, step: int = 1) -> list[int]:
 def pdf_to_images(
     pdf_path: str,
     pages: list[int],
-    mode: int = 0,
     dpi: int = 300,
     orientation_threshold: float = 3.0,
 ) -> list[np.ndarray]:
-    """Convert selected PDF pages into preprocessed images.
+    """Convert selected PDF pages into numpy ndarray images (in RGB format).
 
     Args:
         pdf_path: Path to the PDF file.
         pages: List of 1-indexed page numbers to extract.
-        mode: Image output mode: ``0`` for RGB, ``1`` for grayscale, or
-            ``2`` for binary output using Otsu thresholding.
         dpi: Rendering resolution in dots per inch.
         orientation_threshold: Minimum orientation confidence required to
             process a page.
@@ -76,27 +73,16 @@ def pdf_to_images(
             )
             continue
 
-        if orientation_data["rotate"] == 90:
+        if orientation_data["rotate"] == 0:
+            pass
+        elif orientation_data["rotate"] == 90:
             image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
         elif orientation_data["rotate"] == 180:
             image = cv2.rotate(image, cv2.ROTATE_180)
         elif orientation_data["rotate"] == 270:
             image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-
-        if mode == 0:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        elif mode == 1:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        elif mode == 2:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-            _, image = cv2.threshold(
-                image,
-                0,
-                255,
-                cv2.THRESH_BINARY + cv2.THRESH_OTSU,
-            )
         else:
-            raise ValueError("Invalid mode")
+            print(f"Page {page_number} has unusual orientation")
 
         images.append(image)
 
@@ -119,7 +105,7 @@ def save_images(
 
     destination = Path(destination_path)
     for image, page_number in zip(images, pages):
-        file_name = f"{page_number:04d}.jpg"
+        file_name = f"{page_number:04d}.png"
         cv2.imwrite(str(destination / file_name), image)
 
 
@@ -129,10 +115,10 @@ def main() -> None:
     pages = select_pages(40, 40, 1)
     pdf_path = "CV19-Phạm Phúc An Khang-20120303/T1_Sách Truyện Các Thánh (Tháng 1).pdf"
 
-    for mode in range(3):
-        destination_path = f"Dong_hang/test/{mode}"
-        images = pdf_to_images(pdf_path, pages, mode=mode, dpi=250)
-        save_images(destination_path, images, pages)
+
+    destination_path = f"Dong_hang/test/"
+    images = pdf_to_images(pdf_path, pages, dpi=250)
+    save_images(destination_path, images, pages)
 
 
 if __name__ == "__main__":

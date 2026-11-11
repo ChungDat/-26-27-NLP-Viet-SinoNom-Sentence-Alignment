@@ -20,5 +20,6 @@ wheels/
 *.ttc
 *.png
 *.xlsx
+*.txt
 dictionaries-04-11-2026
 test/
