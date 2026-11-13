@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -66,6 +65,7 @@ def pdf_to_images(
             image,
             output_type=pytesseract.Output.DICT,
         )
+
         if orientation_data["orientation_conf"] < orientation_threshold:
             print(
                 f"Page {page_number} has orientation confidence lower than "

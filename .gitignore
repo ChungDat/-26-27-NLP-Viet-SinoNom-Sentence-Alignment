@@ -12,14 +12,21 @@ wheels/
 # Project related
 *.zip
 *.pdf
-*.odt
 *.jsonl
+.env
+
+.agents
+.aws
+.codex
+.vscode
+
 *.ttf
 *.TTF
 *.otf
 *.ttc
-*.png
+
 *.xlsx
-*.txt
-dictionaries-04-11-2026
+
+dictionaries-04-11-2026/
 test/
+Instruction/

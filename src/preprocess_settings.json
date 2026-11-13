@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "c49690b3324a49f3bacb38aeae115844",
+      "type": "convert_color",
+      "params": {
+        "mode": 1
+      }
+    },
+    {
+      "id": "b4f94de54d6d46059d90832b6a3c7f7d",
+      "type": "grayscale_morphology",
+      "params": {
+        "operation": "dilate",
+        "kernel_size": 5,
+        "iterations": 1,
+        "kernel_shape": "rect",
+        "kernel_orientation": "vertical"
+      }
+    },
+    {
+      "id": "12611055611b41648155e10355ea92ab",
+      "type": "grayscale_morphology",
+      "params": {
+        "operation": "black_tophat",
+        "kernel_size": 19,
+        "iterations": 1,
+        "kernel_shape": "rect",
+        "kernel_orientation": "square"
+      }
+    },
+    {
+      "id": "a0e5070aa24448a09eb7c57c1589cde4",
+      "type": "grayscale_morphology",
+      "params": {
+        "operation": "dilate",
+        "kernel_size": 5,
+        "iterations": 2,
+        "kernel_shape": "rect",
+        "kernel_orientation": "square"
+      }
+    },
+    {
+      "id": "8f320a2ec31e4fc3b13259521cf35143",
+      "type": "reverse_color",
+      "params": {}
+    }
+  ]
+}

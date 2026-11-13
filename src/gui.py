@@ -22,7 +22,7 @@ except ImportError:
 
 
 OUTPUT_DIR = Path("Dong_hang")
-LOW_CONFIDENCE_THRESHOLD = 80.0
+LOW_CONFIDENCE_THRESHOLD = 85.0
 PSM_NOTES = {
     "--psm 3": "Default",
     "--psm 4": "Tabular-like data, each row is a sample (for table of content)",
@@ -294,7 +294,7 @@ def _load_page() -> None:
         st.session_state.annotated_image = None
         st.session_state.annotated_for = None
         st.session_state.annotated_config = None
-        st.success(f"Extracted {len(images)} image(s). Open the OCR page to continue.")
+        st.success(f"Extracted {len(images)} image(s).")
 
 
 def _active_ocr_images() -> tuple[list[np.ndarray], list[int], bool]:
