@@ -1,0 +1,34 @@
+{
+  "source": "T1_Sách Truyện Các Thánh (Tháng 1).pdf",
+  "language": "vie",
+  "page_count": 400,
+  "width": 3704,
+  "height": 5255,
+  "pages": [
+    {
+      "pdf_page_number": 1,
+      "document_page_number": 1,
+      "page_name": "001.png",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": [100, 200, 1200, 500],
+          "lines": [
+            {
+              "line_id": 1,
+              "bbox": [100, 200, 1200, 500],
+              "text": "Đây là nội dung văn bản.",
+              "words": [
+                {
+                  "bbox": [100, 200, 180, 250],
+                  "text": "Đây",
+                  "confidence": 95.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

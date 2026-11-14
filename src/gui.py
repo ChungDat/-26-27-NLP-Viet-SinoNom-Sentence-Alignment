@@ -12,12 +12,12 @@ import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 
 try:
-    from .extraction import pdf_to_images, select_pages
+    from .extraction import PDFDocument, select_pages
     from .ocr_viet import get_ocr_data, normalize_text
     from .preprocess import PreprocessPipeline
 except ImportError:
-    from extraction import pdf_to_images, select_pages
-    from ocr_viet import get_ocr_data, normalize_text
+    from extraction import PDFDocument, select_pages
+    from ocr_viet import TesseractOCR, normalize_text
     from preprocess import PreprocessPipeline
 
 
@@ -36,8 +36,7 @@ PSM_NOTES = {
 
 
 def _pdf_page_count(pdf_bytes: bytes) -> int:
-    """Return the number of pages in an uploaded PDF.
-    """
+    """Return the number of pages in an uploaded PDF."""
 
     document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     try:
@@ -88,9 +87,7 @@ def filter_bounding_boxes(
     for field, values in data.items():
         if isinstance(values, list):
             filtered_data[field] = [
-                values[index]
-                for index in retained_indices
-                if index < len(values)
+                values[index] for index in retained_indices if index < len(values)
             ]
         else:
             filtered_data[field] = values
@@ -244,7 +241,12 @@ def _safe_filename(name: str) -> str:
 
 def _load_page() -> None:
     st.header("1. Extract images from a PDF")
-    uploaded_pdf = st.file_uploader("Select a PDF file", type=["pdf"], accept_multiple_files=False, max_upload_size=500)
+    uploaded_pdf = st.file_uploader(
+        "Select a PDF file",
+        type=["pdf"],
+        accept_multiple_files=False,
+        max_upload_size=500,
+    )
 
     if uploaded_pdf is None:
         return
@@ -259,9 +261,13 @@ def _load_page() -> None:
     st.caption(f"{uploaded_pdf.name} - {page_count} page(s)")
     col_start, col_end, col_step = st.columns(3)
     with col_start:
-        start = st.number_input("Start page", min_value=1, max_value=page_count, value=1)
+        start = st.number_input(
+            "Start page", min_value=1, max_value=page_count, value=1
+        )
     with col_end:
-        end = st.number_input("End page (Included)", min_value=1, max_value=page_count, value=int(start))
+        end = st.number_input(
+            "End page (Included)", min_value=1, max_value=page_count, value=int(start)
+        )
     with col_step:
         step = st.number_input("Step", min_value=1, max_value=page_count, value=1)
 
@@ -269,7 +275,7 @@ def _load_page() -> None:
         st.warning("Backward reading")
 
     pages = select_pages(int(start), int(end), int(step))
-    
+
     st.write(f"Pages to extract: {', '.join(map(str, pages))}")
 
     if st.button("Confirm and extract images", type="primary"):
@@ -375,7 +381,7 @@ def _ocr_page() -> None:
             or st.session_state.get("annotated_min_height") != min_box_height
         ):
             display_image = _image_to_pil(current_image)
-            
+
         st.image(
             display_image,
             width="stretch",
@@ -536,7 +542,9 @@ def _render_step_controls(pipeline: PreprocessPipeline, index: int) -> bool:
                 "Kernel shape",
                 ["rect", "ellipse"],
                 index=0 if params.get("kernel_shape", "rect") == "rect" else 1,
-                format_func=lambda value: "Rectangular" if value == "rect" else "Elliptical",
+                format_func=lambda value: (
+                    "Rectangular" if value == "rect" else "Elliptical"
+                ),
                 key=f"{step_id}-kernel-shape",
             )
             kernel_orientation = params.get("kernel_orientation", "square")
@@ -592,8 +600,7 @@ def _preprocess_page() -> None:
     with st.sidebar:
         st.divider()
         source_options = ["Upload an image"] + [
-            f"Extracted page {page}"
-            for page in extracted_pages
+            f"Extracted page {page}" for page in extracted_pages
         ]
         source_index = st.selectbox(
             "Source image",
@@ -662,7 +669,7 @@ def _preprocess_page() -> None:
             "Saved preprocess settings",
             type=["json"],
             key="preprocess_settings_upload",
-            accept_multiple_files=False
+            accept_multiple_files=False,
         )
         if st.button(
             "Import preprocess settings",
@@ -729,10 +736,12 @@ def _preprocess_page() -> None:
                     min_box_height,
                 )
 
-    if (
-        st.session_state.get("preprocess_annotated") is not None
-        and st.session_state.get("preprocess_annotated_filter")
-        == (preview_psm, min_box_width, min_box_height)
+    if st.session_state.get(
+        "preprocess_annotated"
+    ) is not None and st.session_state.get("preprocess_annotated_filter") == (
+        preview_psm,
+        min_box_width,
+        min_box_height,
     ):
         st.image(
             st.session_state.preprocess_annotated,
