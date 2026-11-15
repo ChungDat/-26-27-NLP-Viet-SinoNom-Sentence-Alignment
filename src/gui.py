@@ -2,22 +2,29 @@ from __future__ import annotations
 
 import json
 import re
-import tempfile
 from pathlib import Path
 
 import cv2
 import numpy as np
-import pymupdf
+import pandas as pd
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 try:
     from .extraction import PDFDocument, select_pages
-    from .ocr_viet import get_ocr_data, normalize_text
+    from .ocr_viet import (
+        VLMOCR,
+        TesseractOCR,
+        filtered_ocr_text,
+    )
     from .preprocess import PreprocessPipeline
 except ImportError:
     from extraction import PDFDocument, select_pages
-    from ocr_viet import TesseractOCR, normalize_text
+    from ocr_viet import (
+        VLMOCR,
+        TesseractOCR,
+        filtered_ocr_text,
+    )
     from preprocess import PreprocessPipeline
 
 
@@ -35,16 +42,6 @@ PSM_NOTES = {
 }
 
 
-def _pdf_page_count(pdf_bytes: bytes) -> int:
-    """Return the number of pages in an uploaded PDF."""
-
-    document = pymupdf.open(stream=pdf_bytes, filetype="pdf")
-    try:
-        return len(document)
-    finally:
-        document.close()
-
-
 def _image_to_pil(image: np.ndarray) -> Image.Image:
     """Convert an RGB or grayscale NumPy image to a PIL image."""
 
@@ -55,155 +52,23 @@ def _image_to_pil(image: np.ndarray) -> Image.Image:
     return Image.fromarray(image)
 
 
-def filter_bounding_boxes(
-    data: dict,
-    min_width: int = 0,
-    min_height: int = 0,
-) -> dict:
-    """Return OCR data containing only boxes that meet both size limits.
-
-    A box is rejected when either its width or height is below the requested
-    minimum. Every list-valued OCR field is filtered by the same indices, so
-    its values remain aligned with the retained ``text`` entries.
-    """
-
-    if min_width < 0 or min_height < 0:
-        raise ValueError("minimum bounding-box dimensions must be non-negative")
-
-    text_entries = data.get("text", [])
-    widths = data.get("width", [])
-    heights = data.get("height", [])
-    retained_indices: list[int] = []
-    for index in range(len(text_entries)):
-        try:
-            width = int(widths[index])
-            height = int(heights[index])
-        except (IndexError, TypeError, ValueError):
-            continue
-        if width >= min_width and height >= min_height:
-            retained_indices.append(index)
-
-    filtered_data: dict = {}
-    for field, values in data.items():
-        if isinstance(values, list):
-            filtered_data[field] = [
-                values[index] for index in retained_indices if index < len(values)
-            ]
-        else:
-            filtered_data[field] = values
-    return filtered_data
+def _text_stats(text: str) -> dict[str, int]:
+    """Calculate character, word, and line count for a given text."""
+    stripped = text.strip()
+    if not stripped:
+        return {"chars": 0, "words": 0, "lines": 0}
+    return {
+        "chars": len(stripped),
+        "words": len(stripped.split()),
+        "lines": len([ln for ln in stripped.splitlines() if ln.strip()]),
+    }
 
 
-def _filtered_ocr_text(data: dict) -> str:
-    """Rebuild text from retained OCR word boxes in Tesseract reading order."""
-
-    lines: list[str] = []
-    words: list[str] = []
-    current_line: tuple[int, int, int] | None = None
-    current_paragraph: tuple[int, int] | None = None
-    previous_paragraph: tuple[int, int] | None = None
-
-    def value(field: str, index: int, default: int = 0) -> int:
-        try:
-            return int(data.get(field, [])[index])
-        except (IndexError, TypeError, ValueError):
-            return default
-
-    def confidence(index: int) -> float:
-        try:
-            return float(data.get("conf", [])[index])
-        except (IndexError, TypeError, ValueError):
-            return -1.0
-
-    def finish_line() -> None:
-        nonlocal words, previous_paragraph
-        if not words:
-            return
-        if previous_paragraph is not None and current_paragraph != previous_paragraph:
-            lines.append("")
-        lines.append(" ".join(words))
-        previous_paragraph = current_paragraph
-        words = []
-
-    for index, raw_text in enumerate(data.get("text", [])):
-        text = str(raw_text).strip()
-        if not text or confidence(index) < 0:
-            continue
-
-        paragraph = (value("block_num", index), value("par_num", index))
-        line = (*paragraph, value("line_num", index))
-        if current_line is not None and line != current_line:
-            finish_line()
-        current_line = line
-        current_paragraph = paragraph
-        words.append(text)
-
-    finish_line()
-    return normalize_text("\n".join(lines))
-
-
-def _annotated_image(image: np.ndarray, data: dict) -> Image.Image:
-    """Draw OCR word boxes, marking low-confidence detections in red."""
-
-    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 40)
-
-    result = _image_to_pil(image).convert("RGB")
-    draw = ImageDraw.Draw(result)
-
-    for index, text in enumerate(data.get("text", [])):
-        if not text.strip():
-            continue
-        try:
-            confidence = float(data["conf"][index])
-        except (KeyError, TypeError, ValueError):
-            confidence = -1
-        if confidence < 0:
-            continue
-
-        left = int(data["left"][index])
-        top = int(data["top"][index])
-        width = int(data["width"][index])
-        height = int(data["height"][index])
-
-        label = f"{text} ({confidence:.1f}%)"
-        color = (255, 0, 0) if confidence < LOW_CONFIDENCE_THRESHOLD else (0, 191, 255)
-
-        draw.rectangle(
-            (left, top, left + width, top + height),
-            outline=color,
-            width=3,
-        )
-
-        draw.text((left, max(top - 50, 0)), label, font=font, fill=color)
-
-    return result
-
-
-def _ocr_image(
-    image: np.ndarray,
-    config: str,
-    min_width: int = 10,
-    min_height: int = 10,
-) -> tuple[str, Image.Image]:
-    """
-    Run OCR on an in-memory image and return text plus an annotated image
-    """
-
-    image_for_encoding = image
-    if image.ndim == 3 and image.shape[2] == 3:
-        image_for_encoding = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    elif image.ndim == 3 and image.shape[2] == 4:
-        image_for_encoding = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
-
-    with tempfile.NamedTemporaryFile(suffix=".jpg") as image_file:
-        success, encoded = cv2.imencode(".jpg", image_for_encoding)
-        if not success:
-            raise ValueError("Could not encode the selected image")
-        image_file.write(encoded.tobytes())
-        image_file.flush()
-        data = get_ocr_data(image_file.name, config=config)
-    filtered_data = filter_bounding_boxes(data, min_width, min_height)
-    return _filtered_ocr_text(filtered_data), _annotated_image(image, filtered_data)
+def _set_comparison_text(version: int, text: str) -> None:
+    """Keep comparison results and their text-area widget values in sync."""
+    st.session_state[f"cmp_v{version}_text"] = text
+    st.session_state[f"cmp_v{version}_area"] = text
+    st.session_state[f"v{version}_col_area"] = text
 
 
 def _bounding_box_filter_controls() -> tuple[int, int]:
@@ -253,7 +118,8 @@ def _load_page() -> None:
 
     pdf_bytes = uploaded_pdf.getvalue()
     try:
-        page_count = _pdf_page_count(pdf_bytes)
+        doc = PDFDocument(pdf_bytes, dpi=300, orientation_threshold=3.0)
+        page_count = doc.page_count()
     except Exception as error:
         st.error(f"Could not read this PDF: {error}")
         return
@@ -281,10 +147,7 @@ def _load_page() -> None:
     if st.button("Confirm and extract images", type="primary"):
         with st.spinner("Rendering selected pages…"):
             try:
-                with tempfile.NamedTemporaryFile(suffix=".pdf") as pdf_file:
-                    pdf_file.write(pdf_bytes)
-                    pdf_file.flush()
-                    images = pdf_to_images(pdf_file.name, pages, dpi=300)
+                images = doc.to_images(pages)
             except Exception as error:
                 st.error(f"Could not extract the pages: {error}")
                 return
@@ -390,12 +253,21 @@ def _ocr_page() -> None:
         if st.button("Run OCR and draw bounding boxes", type="primary"):
             with st.spinner("Running OCR…"):
                 try:
-                    text, annotated = _ocr_image(
-                        current_image,
-                        psm_config,
-                        min_box_width,
-                        min_box_height,
+                    ocr = TesseractOCR(
+                        lang="vie",
+                        confidence_threshold=LOW_CONFIDENCE_THRESHOLD,
                     )
+                    page = ocr.run(
+                        current_image,
+                        pdf_page_number=pages[image_index],
+                        document_page_number=pages[image_index] + int(page_adjustment),
+                        page_name=f"page_{pages[image_index]:04d}",
+                        config=psm_config,
+                        min_width=min_box_width,
+                        min_height=min_box_height,
+                    )
+                    text = ocr.text
+                    annotated = ocr.annotate_image()
                 except Exception as error:
                     st.error(f"OCR failed: {error}")
                 else:
@@ -406,6 +278,7 @@ def _ocr_page() -> None:
                     st.session_state.annotated_config = psm_config
                     st.session_state.annotated_min_width = min_box_width
                     st.session_state.annotated_min_height = min_box_height
+                    st.session_state.ocr_page_obj = page
                     st.rerun()
 
     with right:
@@ -417,18 +290,31 @@ def _ocr_page() -> None:
         st.session_state.ocr_text = text
         filename = st.text_input("Text filename", value="ocr_result.txt")
         safe_name = _safe_filename(filename)
-        if st.button("Save text"):
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            destination = OUTPUT_DIR / safe_name
-            destination.write_text(text, encoding="utf-8")
-            st.success(f"Saved as {destination}")
-        st.download_button(
-            "Download text",
-            data=text,
-            file_name=safe_name,
-            mime="text/plain",
-            disabled=not bool(text),
-        )
+        col_save, col_dl_txt, col_dl_json = st.columns(3)
+        with col_save:
+            if st.button("Save text"):
+                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                destination = OUTPUT_DIR / safe_name
+                destination.write_text(text, encoding="utf-8")
+                st.success(f"Saved as {destination}")
+        with col_dl_txt:
+            st.download_button(
+                "Download text",
+                data=text,
+                file_name=safe_name,
+                mime="text/plain",
+                disabled=not bool(text),
+            )
+        with col_dl_json:
+            page_obj = st.session_state.get("ocr_page_obj")
+            json_name = Path(safe_name).stem + ".json"
+            st.download_button(
+                "Download JSON",
+                data=page_obj.model_dump_json(indent=2) if page_obj else "",
+                file_name=json_name,
+                mime="application/json",
+                disabled=page_obj is None,
+            )
 
 
 def _uploaded_image(uploaded_file) -> np.ndarray | None:
@@ -646,9 +532,12 @@ def _preprocess_page() -> None:
             if st.button("Reset pipeline"):
                 pipeline = PreprocessPipeline()
                 st.session_state.preprocess_steps = []
-                st.session_state.preprocess_ocr_text = ""
-                st.session_state.preprocess_ocr_text_editor = ""
-                st.session_state.preprocess_annotated = None
+                for version in range(1, 5):
+                    _set_comparison_text(version, "")
+                st.session_state.cmp_v1_annotated = None
+                st.session_state.cmp_v3_annotated = None
+                st.session_state.cmp_v2_response = None
+                st.session_state.cmp_v4_response = None
                 st.rerun()
 
         for index in range(len(pipeline.steps)):
@@ -683,10 +572,12 @@ def _preprocess_page() -> None:
                 st.error(f"Could not import settings: {error}")
             else:
                 st.session_state.preprocess_steps = imported_pipeline.to_dict()
-                st.session_state.preprocess_ocr_text = ""
-                st.session_state.preprocess_ocr_text_editor = ""
-                st.session_state.preprocess_annotated = None
-                st.session_state.preprocess_annotated_filter = None
+                for version in range(1, 5):
+                    _set_comparison_text(version, "")
+                st.session_state.cmp_v1_annotated = None
+                st.session_state.cmp_v3_annotated = None
+                st.session_state.cmp_v2_response = None
+                st.session_state.cmp_v4_response = None
                 st.rerun()
 
         st.divider()
@@ -708,50 +599,303 @@ def _preprocess_page() -> None:
     with processed_col:
         st.image(_image_to_pil(processed_image), caption="Processed", width="stretch")
 
-    st.subheader("Try OCR on the preview")
-    preview_psm = st.selectbox(
-        "Page segmentation method",
-        list(PSM_NOTES),
-        format_func=lambda config: f"{config} - {PSM_NOTES[config]}",
-        key="preprocess_psm_config",
+    st.divider()
+    st.subheader("Extraction Comparison: Tesseract vs VLM (4 versions)")
+    st.caption(
+        "Compare OCR text extractions between original and preprocessed images "
+        "using both Tesseract and Vision-Language Model (VLM)."
     )
-    if st.button("Run OCR on processed preview", type="primary"):
-        with st.spinner("Running OCR…"):
+
+    with st.expander("Comparison engine settings", expanded=False):
+        cfg_col1, cfg_col2 = st.columns(2)
+        with cfg_col1:
+            st.markdown("**Tesseract settings**")
+            cmp_psm = st.selectbox(
+                "Page segmentation method (PSM)",
+                list(PSM_NOTES),
+                format_func=lambda config: f"{config} - {PSM_NOTES[config]}",
+                key="cmp_psm_config",
+            )
+            st.caption(
+                f"Bounding-box filter: min width {min_box_width}px, min height {min_box_height}px"
+            )
+        with cfg_col2:
+            st.markdown("**VLM (Ollama) settings**")
+            vlm_model = st.text_input(
+                "Ollama VLM model",
+                value="qwen3-vl:2b-instruct",
+                help="Multimodal vision model name in Ollama.",
+                key="cmp_vlm_model",
+            )
+            vlm_temperature = st.slider(
+                "Temperature",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.1,
+                step=0.05,
+                key="cmp_vlm_temp",
+            )
+
+    btn_all, btn_tess, btn_vlm = st.columns([1.5, 1, 1])
+    run_all = btn_all.button("⚡ Run 4-Way Comparison", type="primary")
+    run_tess = btn_tess.button("Run Tesseract extractions (V1 & V3)")
+    run_vlm = btn_vlm.button("Run VLM extractions (V2 & V4)")
+
+    if run_all or run_tess:
+        with st.spinner("Running Tesseract OCR on original & preprocessed images…"):
             try:
-                text, annotated = _ocr_image(
-                    processed_image,
-                    preview_psm,
-                    min_box_width,
-                    min_box_height,
+                tess_ocr_v1 = TesseractOCR(
+                    lang="vie",
+                    confidence_threshold=LOW_CONFIDENCE_THRESHOLD,
                 )
+                tess_ocr_v1.run(
+                    source_image,
+                    config=cmp_psm,
+                    min_width=min_box_width,
+                    min_height=min_box_height,
+                )
+                _set_comparison_text(1, tess_ocr_v1.text)
+                st.session_state.cmp_v1_annotated = tess_ocr_v1.annotate_image()
+                st.session_state.cmp_v1_status = "Success"
             except Exception as error:
-                st.error(f"OCR failed: {error}")
-            else:
-                st.session_state.preprocess_ocr_text = text
-                st.session_state.preprocess_ocr_text_editor = text
-                st.session_state.preprocess_annotated = annotated
-                st.session_state.preprocess_annotated_filter = (
-                    preview_psm,
-                    min_box_width,
-                    min_box_height,
+                _set_comparison_text(1, f"Error: {error}")
+                st.session_state.cmp_v1_annotated = None
+                st.session_state.cmp_v1_status = f"Failed ({error})"
+                st.error(f"Tesseract (Original) failed: {error}")
+
+            try:
+                tess_ocr_v3 = TesseractOCR(
+                    lang="vie",
+                    confidence_threshold=LOW_CONFIDENCE_THRESHOLD,
+                )
+                tess_ocr_v3.run(
+                    processed_image,
+                    config=cmp_psm,
+                    min_width=min_box_width,
+                    min_height=min_box_height,
+                )
+                _set_comparison_text(3, tess_ocr_v3.text)
+                st.session_state.cmp_v3_annotated = tess_ocr_v3.annotate_image()
+                st.session_state.cmp_v3_status = "Success"
+            except Exception as error:
+                _set_comparison_text(3, f"Error: {error}")
+                st.session_state.cmp_v3_annotated = None
+                st.session_state.cmp_v3_status = f"Failed ({error})"
+                st.error(f"Tesseract (Preprocessed) failed: {error}")
+
+    if run_all or run_vlm:
+        with st.spinner("Running VLM OCR on original & preprocessed images…"):
+            try:
+                vlm_ocr_v2 = VLMOCR(
+                    model=vlm_model,
+                    options={"temperature": vlm_temperature},
+                )
+                vlm_ocr_v2.run(source_image)
+                _set_comparison_text(2, vlm_ocr_v2.text)
+                st.session_state.cmp_v2_response = vlm_ocr_v2.raw_response
+                st.session_state.cmp_v2_status = "Success"
+            except Exception as error:
+                _set_comparison_text(2, f"Error: {error}")
+                st.session_state.cmp_v2_response = None
+                st.session_state.cmp_v2_status = f"Failed ({error})"
+                st.warning(f"VLM (Original) failed: {error}")
+
+            try:
+                vlm_ocr_v4 = VLMOCR(
+                    model=vlm_model,
+                    options={"temperature": vlm_temperature},
+                )
+                vlm_ocr_v4.run(processed_image)
+                _set_comparison_text(4, vlm_ocr_v4.text)
+                st.session_state.cmp_v4_response = vlm_ocr_v4.raw_response
+                st.session_state.cmp_v4_status = "Success"
+            except Exception as error:
+                _set_comparison_text(4, f"Error: {error}")
+                st.session_state.cmp_v4_response = None
+                st.session_state.cmp_v4_status = f"Failed ({error})"
+                st.warning(f"VLM (Preprocessed) failed: {error}")
+
+    v1_text = st.session_state.get("cmp_v1_text", "")
+    v2_text = st.session_state.get("cmp_v2_text", "")
+    v3_text = st.session_state.get("cmp_v3_text", "")
+    v4_text = st.session_state.get("cmp_v4_text", "")
+    v1_annotated = st.session_state.get("cmp_v1_annotated")
+    v3_annotated = st.session_state.get("cmp_v3_annotated")
+
+    has_extractions = any([v1_text, v2_text, v3_text, v4_text])
+    if has_extractions:
+        tab_side, tab_cols, tab_summary = st.tabs(
+            ["Side-by-Side View", "4-Way Text View", "Metrics Summary"]
+        )
+
+        with tab_side:
+            col_orig, col_proc = st.columns(2, gap="medium")
+            with col_orig:
+                st.markdown("#### 📄 Original Image Extractions")
+                st.markdown("**Version 1: Tesseract OCR**")
+                if v1_annotated is not None:
+                    st.image(
+                        v1_annotated,
+                        caption="Original - Tesseract word boxes",
+                        width="stretch",
+                    )
+                s1 = _text_stats(v1_text)
+                st.caption(
+                    f"{s1['chars']} chars | {s1['words']} words | {s1['lines']} lines"
+                )
+                st.text_area(
+                    "V1 Text (Original + Tesseract)",
+                    value=v1_text,
+                    height=220,
+                    key="cmp_v1_area",
                 )
 
-    if st.session_state.get(
-        "preprocess_annotated"
-    ) is not None and st.session_state.get("preprocess_annotated_filter") == (
-        preview_psm,
-        min_box_width,
-        min_box_height,
-    ):
-        st.image(
-            st.session_state.preprocess_annotated,
-            caption="OCR preview",
-            width="stretch",
-        )
-        st.text_area(
-            "OCR extraction text",
-            height=260,
-            key="preprocess_ocr_text_editor",
+                st.markdown("**Version 2: VLM OCR**")
+                s2 = _text_stats(v2_text)
+                v2_meta = ""
+                resp2 = st.session_state.get("cmp_v2_response")
+                if resp2 and hasattr(resp2, "eval_count") and resp2.eval_count:
+                    v2_meta = f" | {resp2.eval_count} tokens"
+                st.caption(
+                    f"{s2['chars']} chars | {s2['words']} words | {s2['lines']} lines{v2_meta}"
+                )
+                st.text_area(
+                    "V2 Text (Original + VLM)",
+                    value=v2_text,
+                    height=220,
+                    key="cmp_v2_area",
+                )
+
+            with col_proc:
+                st.markdown("#### ⚙️ Preprocessed Image Extractions")
+                st.markdown("**Version 3: Tesseract OCR**")
+                if v3_annotated is not None:
+                    st.image(
+                        v3_annotated,
+                        caption="Preprocessed - Tesseract word boxes",
+                        width="stretch",
+                    )
+                s3 = _text_stats(v3_text)
+                st.caption(
+                    f"{s3['chars']} chars | {s3['words']} words | {s3['lines']} lines"
+                )
+                st.text_area(
+                    "V3 Text (Preprocessed + Tesseract)",
+                    value=v3_text,
+                    height=220,
+                    key="cmp_v3_area",
+                )
+
+                st.markdown("**Version 4: VLM OCR**")
+                s4 = _text_stats(v4_text)
+                v4_meta = ""
+                resp4 = st.session_state.get("cmp_v4_response")
+                if resp4 and hasattr(resp4, "eval_count") and resp4.eval_count:
+                    v4_meta = f" | {resp4.eval_count} tokens"
+                st.caption(
+                    f"{s4['chars']} chars | {s4['words']} words | {s4['lines']} lines{v4_meta}"
+                )
+                st.text_area(
+                    "V4 Text (Preprocessed + VLM)",
+                    value=v4_text,
+                    height=220,
+                    key="cmp_v4_area",
+                )
+
+        with tab_cols:
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.markdown("**V1: Orig + Tesseract**")
+                s1 = _text_stats(v1_text)
+                st.caption(f"{s1['chars']}c / {s1['words']}w")
+                st.text_area("V1 Text", value=v1_text, height=350, key="v1_col_area")
+                st.download_button(
+                    "Download V1",
+                    data=v1_text,
+                    file_name="v1_original_tesseract.txt",
+                    disabled=not bool(v1_text),
+                    key="dl_v1",
+                )
+            with c2:
+                st.markdown("**V2: Orig + VLM**")
+                s2 = _text_stats(v2_text)
+                st.caption(f"{s2['chars']}c / {s2['words']}w")
+                st.text_area("V2 Text", value=v2_text, height=350, key="v2_col_area")
+                st.download_button(
+                    "Download V2",
+                    data=v2_text,
+                    file_name="v2_original_vlm.txt",
+                    disabled=not bool(v2_text),
+                    key="dl_v2",
+                )
+            with c3:
+                st.markdown("**V3: Prep + Tesseract**")
+                s3 = _text_stats(v3_text)
+                st.caption(f"{s3['chars']}c / {s3['words']}w")
+                st.text_area("V3 Text", value=v3_text, height=350, key="v3_col_area")
+                st.download_button(
+                    "Download V3",
+                    data=v3_text,
+                    file_name="v3_preprocessed_tesseract.txt",
+                    disabled=not bool(v3_text),
+                    key="dl_v3",
+                )
+            with c4:
+                st.markdown("**V4: Prep + VLM**")
+                s4 = _text_stats(v4_text)
+                st.caption(f"{s4['chars']}c / {s4['words']}w")
+                st.text_area("V4 Text", value=v4_text, height=350, key="v4_col_area")
+                st.download_button(
+                    "Download V4",
+                    data=v4_text,
+                    file_name="v4_preprocessed_vlm.txt",
+                    disabled=not bool(v4_text),
+                    key="dl_v4",
+                )
+
+        with tab_summary:
+            summary_data = [
+                {
+                    "Version": "V1",
+                    "Source Image": "Original",
+                    "OCR Engine": "Tesseract",
+                    "Characters": _text_stats(v1_text)["chars"],
+                    "Words": _text_stats(v1_text)["words"],
+                    "Lines": _text_stats(v1_text)["lines"],
+                    "Status": st.session_state.get("cmp_v1_status", "Not run"),
+                },
+                {
+                    "Version": "V2",
+                    "Source Image": "Original",
+                    "OCR Engine": "VLM",
+                    "Characters": _text_stats(v2_text)["chars"],
+                    "Words": _text_stats(v2_text)["words"],
+                    "Lines": _text_stats(v2_text)["lines"],
+                    "Status": st.session_state.get("cmp_v2_status", "Not run"),
+                },
+                {
+                    "Version": "V3",
+                    "Source Image": "Preprocessed",
+                    "OCR Engine": "Tesseract",
+                    "Characters": _text_stats(v3_text)["chars"],
+                    "Words": _text_stats(v3_text)["words"],
+                    "Lines": _text_stats(v3_text)["lines"],
+                    "Status": st.session_state.get("cmp_v3_status", "Not run"),
+                },
+                {
+                    "Version": "V4",
+                    "Source Image": "Preprocessed",
+                    "OCR Engine": "VLM",
+                    "Characters": _text_stats(v4_text)["chars"],
+                    "Words": _text_stats(v4_text)["words"],
+                    "Lines": _text_stats(v4_text)["lines"],
+                    "Status": st.session_state.get("cmp_v4_status", "Not run"),
+                },
+            ]
+            st.dataframe(pd.DataFrame(summary_data), width="stretch")
+    else:
+        st.info(
+            "Click '⚡ Run 4-Way Comparison' to run extractions on both images with both engines."
         )
 
     apply_disabled = not bool(extracted_images)

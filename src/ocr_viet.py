@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import re
 import statistics
 import time
@@ -7,54 +8,77 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-try:
-    import ollama
-except ImportError:
-    ollama = None  # type: ignore[assignment]
-
-try:
-    import pytesseract
-except ImportError:
-    pytesseract = None  # type: ignore[assignment]
-
+import cv2
+import numpy as np
+import ollama
+import pytesseract
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, Field
 
-# ---------------------------------------------------------------------------
-# Type alias
-# ---------------------------------------------------------------------------
-
 TesseractData = dict[str, list[Any]]
 
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
+
+def to_pil_image(image: str | Path | np.ndarray | Image.Image | bytes) -> Image.Image:
+    """Convert any supported image source to an RGB PIL Image."""
+    if isinstance(image, (str, Path)):
+        return Image.open(image).convert("RGB")
+    if isinstance(image, bytes):
+        return Image.open(io.BytesIO(image)).convert("RGB")
+    if isinstance(image, Image.Image):
+        return image.convert("RGB")
+    if np is not None and isinstance(image, np.ndarray):
+        if cv2 is not None and image.ndim == 3 and image.shape[2] == 4:
+            return Image.fromarray(cv2.cvtColor(image, cv2.COLOR_RGBA2RGB))
+        return Image.fromarray(image).convert("RGB")
+    raise TypeError(f"Unsupported image type: {type(image)}")
+
+
+def to_image_bytes(image: str | Path | bytes | np.ndarray | Image.Image) -> bytes:
+    """Convert any supported image source to PNG encoded bytes."""
+    if isinstance(image, (str, Path)):
+        return Path(image).read_bytes()
+    if isinstance(image, bytes):
+        return image
+    if np is not None and isinstance(image, np.ndarray):
+        if cv2 is not None:
+            if image.ndim == 2:
+                bgr = image
+            elif image.shape[2] == 4:
+                bgr = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
+            else:
+                bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            success, encoded = cv2.imencode(".png", bgr)
+            if not success:
+                raise ValueError("Could not encode NumPy array to PNG bytes")
+            return encoded.tobytes()
+        buf = io.BytesIO()
+        to_pil_image(image).save(buf, format="PNG")
+        return buf.getvalue()
+    if isinstance(image, Image.Image):
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        return buf.getvalue()
+    raise TypeError(f"Unsupported image type: {type(image)}")
 
 
 class OCRWord(BaseModel):
-    text: str
     bbox: tuple[int, int, int, int] | None = None  # (x_min, y_min, x_max, y_max)
+    text: str
     confidence: float | None = None
-
-
-class OCRLine(BaseModel):
-    line_id: int
-    bbox: tuple[int, int, int, int] | None = None  # (x_min, y_min, x_max, y_max)
-    text: str
-    words: list[OCRWord] = Field(default_factory=list)
 
 
 class OCRParagraph(BaseModel):
     paragraph_id: int
     bbox: tuple[int, int, int, int] | None = None  # (x_min, y_min, x_max, y_max)
-    lines: list[OCRLine] = Field(default_factory=list)
+    text: str
+    words: list[OCRWord] = Field(default_factory=list)
 
 
 class OCRPage(BaseModel):
-    pdf_page_number: int
-    document_page_number: int
+    pdf_page_number: int  # page number on pdf reader
+    document_page_number: int  # actual page number on document
     page_name: str
-    method: str = "tesseract"
+    method: str
     paragraphs: list[OCRParagraph] = Field(default_factory=list)
 
 
@@ -64,13 +88,86 @@ class OCRDocument(BaseModel):
     page_count: int
     width: int | None = None
     height: int | None = None
-    method: str = "tesseract"
     pages: list[OCRPage] = Field(default_factory=list)
 
 
-# ---------------------------------------------------------------------------
-# Helper: bounding-box union
-# ---------------------------------------------------------------------------
+def normalize_text(text: str) -> str:
+    """Normalize OCR text by collapsing soft line wraps and preserving paragraph breaks
+
+    Single newlines are treated as OCR soft wraps and replaced with spaces; two or more consecutive newlines remain a single blank-line paragraph separator. Sentence punctuation does not create line breaks.
+
+    Args:
+        text: Raw OCR text, potentially containing soft-wrapped lines and spaces before punctuation marks.
+
+    Returns:
+        Normalized text with soft wraps collapsed and paragraphs separated by a blank line.
+    """
+    # Step 1 — collapse single newlines (soft wraps) to spaces;
+    #           collapse two-or-more newlines to a single blank line (paragraph break).
+    normalized = re.sub(
+        r"\n+",
+        lambda m: "\n\n" if len(m.group()) >= 2 else " ",
+        text,
+    )
+
+    normalized = re.sub(r"[ \t]+\.", ".", normalized)
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    normalized = normalized.strip(" \t")
+
+    # Append a trailing newline only if the text ends with a full stop.
+    if not normalized.endswith("\n") and re.search(r"[ \t]*\.$", normalized):
+        normalized = re.sub(r"[ \t]*\.$", ".\n", normalized)
+
+    return normalized
+
+
+def filtered_ocr_text(data: TesseractData) -> str:
+    """Rebuild text from retained OCR word boxes in Tesseract reading order.
+
+    Groups words into paragraphs according to block_num and par_num, ignoring line boundaries, then normalizes the resulting text.
+
+    Args:
+        data: TesseractData dictionary.
+
+    Returns:
+        Normalized text string.
+    """
+    paragraphs: list[str] = []
+    words: list[str] = []
+    current_paragraph: tuple[int, int] | None = None
+
+    def value(field: str, index: int, default: int = 0) -> int:
+        try:
+            return int(data.get(field, [])[index])
+        except (IndexError, TypeError, ValueError):
+            return default
+
+    def confidence(index: int) -> float:
+        try:
+            return float(data.get("conf", [])[index])
+        except (IndexError, TypeError, ValueError):
+            return -1.0
+
+    def finish_paragraph() -> None:
+        nonlocal words
+        if not words:
+            return
+        paragraphs.append(" ".join(words))
+        words = []
+
+    for index, raw_text in enumerate(data.get("text", [])):
+        text = str(raw_text).strip()
+        if not text or confidence(index) < 0:
+            continue
+
+        paragraph = (value("block_num", index), value("par_num", index))
+        if current_paragraph is not None and paragraph != current_paragraph:
+            finish_paragraph()
+        current_paragraph = paragraph
+        words.append(text)
+
+    finish_paragraph()
+    return normalize_text("\n\n".join(paragraphs))
 
 
 def _union_bbox(
@@ -93,33 +190,22 @@ def _union_bbox(
     return (min(x_mins), min(y_mins), max(x_maxs), max(y_maxs))
 
 
-# ---------------------------------------------------------------------------
-# TesseractOCR
-# ---------------------------------------------------------------------------
-
-
 class TesseractOCR:
     """Pipeline wrapper for Tesseract OCR on a single image.
 
-    Call :meth:`run` once per image.  After a successful :meth:`run` call the
-    result is available through :attr:`page` and can be written to disk with
-    :meth:`visualize`, :meth:`save_text`, and :meth:`save_json`.
+    Call :meth:`run` once per image.  After a successful :meth:`run` call the result is available through :attr:`page` and can be written to disk with :meth:`visualize`, :meth:`save_text`, and :meth:`save_json`.
 
-    Attempting to call :meth:`visualize`, :meth:`save_text`, or
-    :meth:`save_json` before :meth:`run` raises :exc:`RuntimeError`.
+    Attempting to call :meth:`visualize`, :meth:`save_text`, or :meth:`save_json` before :meth:`run` raises :exc:`RuntimeError`.
 
     Args:
         lang: Tesseract language code (e.g. ``"vie"`` for Vietnamese).
-        confidence_threshold: Words with a confidence score below this value
-            are drawn in red in :meth:`visualize`.  Defaults to ``85.0``.
-        gap_ratio: Consecutive Tesseract paragraphs whose vertical gap is
-            smaller than ``gap_ratio × median_line_height`` are merged into one
-            :class:`OCRParagraph`.  Defaults to ``0.5``.
+        confidence_threshold: Words with a confidence score below this value are drawn in red in :meth:`visualize`.  Defaults to ``85.0``.
+        gap_ratio: Blocks and paragraphs whose vertical gap is smaller than ``gap_ratio * median_word_height`` are merged. Defaults to ``0.5``.
     """
 
     def __init__(
         self,
-        lang: str,
+        lang: str = "vie",
         confidence_threshold: float = 85.0,
         gap_ratio: float = 0.5,
     ) -> None:
@@ -129,55 +215,63 @@ class TesseractOCR:
 
         # State set by run()
         self._image_path: Path | None = None
+        self._image: Image.Image | None = None
         self._raw: TesseractData | None = None
+        self._filtered_raw: TesseractData | None = None
         self._page: OCRPage | None = None
-
-    # ------------------------------------------------------------------
-    # Public entry point
-    # ------------------------------------------------------------------
 
     def run(
         self,
-        image_path: str | Path,
+        image: str | Path | np.ndarray | Image.Image | bytes,
         *,
-        pdf_page_number: int,
-        document_page_number: int,
-        page_name: str,
+        pdf_page_number: int = 1,
+        document_page_number: int = 1,
+        page_name: str = "image",
         config: str = "--psm 3",
+        min_width: int = 0,
+        min_height: int = 0,
     ) -> OCRPage:
         """Run the full OCR pipeline on one image and store the result.
 
-        This method must be called before :meth:`visualize`, :meth:`save_text`,
-        or :meth:`save_json`.  Calling :meth:`run` again on a different image
-        replaces the previously stored result.
+        This method must be called before :meth:`visualize`, :meth:`save_text`, or :meth:`save_json`.  Calling :meth:`run` again on a different image replaces the previously stored result.
 
         Args:
-            image_path: Path to the image file to process.
+            image: Source image as a file path, NumPy array, PIL Image, or bytes.
             pdf_page_number: 1-indexed page number as shown by the PDF reader.
-            document_page_number: Actual document page number
-                (PDF reader page + any page offset).
+            document_page_number: Actual document page number (PDF reader page + any page offset).
             page_name: Human-readable label for the page (e.g. ``"001.png"``).
-            config: Tesseract page segmentation configuration string
-                (e.g. ``"--psm 3"``).
+            config: Tesseract page segmentation configuration string (e.g. ``"--psm 3"``).
+            min_width: Minimum bounding-box width in pixels (boxes smaller are excluded).
+            min_height: Minimum bounding-box height in pixels (boxes smaller are excluded).
 
         Returns:
-            A structured :class:`OCRPage` containing all recognized paragraphs,
-            lines, and words, with heuristic paragraph merging applied.
+            A structured :class:`OCRPage` containing recognized paragraphs and words, with heuristic paragraph merging applied.
         """
-        if pytesseract is None:
-            raise ImportError(
-                "The 'pytesseract' package is required to use TesseractOCR. "
-                "Install it with: pip install pytesseract"
-            )
-        self._image_path = Path(image_path)
+
+        if isinstance(image, (str, Path)):
+            self._image_path = Path(image)
+        else:
+            self._image_path = None
+
+        self._image = to_pil_image(image)
         self._raw = pytesseract.image_to_data(
-            str(self._image_path),
+            self._image,
             output_type=pytesseract.Output.DICT,
             config=config,
             lang=self.lang,
         )
+
+        if min_width > 0 or min_height > 0:
+            self._filtered_raw = self.filter_bounding_boxes(
+                self._raw,
+                min_width=min_width,
+                min_height=min_height,
+            )
+        else:
+            self._filtered_raw = self._raw
+
         self._page = self._build_page(
-            self._raw,
+            self._filtered_raw,
             pdf_page_number=pdf_page_number,
             document_page_number=document_page_number,
             page_name=page_name,
@@ -194,9 +288,27 @@ class TesseractOCR:
         self._require_run()
         return self._page  # type: ignore[return-value]
 
-    # ------------------------------------------------------------------
-    # Private pipeline helpers
-    # ------------------------------------------------------------------
+    @property
+    def text(self) -> str:
+        """The normalized plain-text produced by the most recent :meth:`run` call.
+
+        Raises:
+            RuntimeError: If :meth:`run` has not been called yet.
+        """
+        self._require_run()
+        return normalize_text(self._page_to_text(self._page))  # type: ignore[arg-type]
+
+    @property
+    def raw(self) -> TesseractData:
+        """The raw Tesseract dictionary produced by the most recent :meth:`run` call."""
+        self._require_run()
+        return self._raw  # type: ignore[return-value]
+
+    @property
+    def filtered_raw(self) -> TesseractData:
+        """The filtered Tesseract dictionary after bounding-box filtering."""
+        self._require_run()
+        return self._filtered_raw if self._filtered_raw is not None else self._raw  # type: ignore[return-value]
 
     def _require_run(self) -> None:
         """Raise :exc:`RuntimeError` when :meth:`run` has not been called."""
@@ -216,10 +328,7 @@ class TesseractOCR:
     ) -> OCRPage:
         """Convert raw Tesseract output into a structured :class:`OCRPage`.
 
-        Words are grouped into lines and lines into paragraphs using
-        Tesseract's native ``block_num`` / ``par_num`` / ``line_num`` fields.
-        Adjacent paragraphs that are close enough vertically are then merged
-        by :meth:`_merge_paragraphs`.
+        Words are grouped by Tesseract's native block and paragraph numbers. Raw line boundaries are discarded. Nearby blocks and then nearby paragraphs are merged by :meth:`_merge_paragraphs`.
 
         Args:
             raw: Dictionary returned by ``pytesseract.image_to_data``.
@@ -230,9 +339,10 @@ class TesseractOCR:
         Returns:
             A fully populated :class:`OCRPage`.
         """
-        # Collect words grouped by (block_num, par_num, line_num)
-        # Structure: {(block, par): {line_num: [OCRWord, ...]}}
-        para_lines: dict[tuple[int, int], dict[int, list[OCRWord]]] = defaultdict(
+        # Tesseract's word sequence is already in reading order. Its line
+        # numbers are intentionally ignored because line wraps are not model
+        # boundaries.
+        block_paragraph_words: dict[int, dict[int, list[OCRWord]]] = defaultdict(
             lambda: defaultdict(list)
         )
 
@@ -254,45 +364,35 @@ class TesseractOCR:
             height = int(raw["height"][i])
             block = int(raw["block_num"][i])
             par = int(raw["par_num"][i])
-            line = int(raw["line_num"][i])
-
             word = OCRWord(
                 text=text,
                 bbox=(left, top, left + width, top + height),
                 confidence=conf,
             )
-            para_lines[(block, par)][line].append(word)
+            block_paragraph_words[block][par].append(word)
 
-        # Build OCRParagraph list (before merging)
-        paragraphs: list[OCRParagraph] = []
+        # Build paragraph groups within native Tesseract blocks.
+        blocks: list[list[OCRParagraph]] = []
         para_id = 1
-        for (block, par), lines_dict in sorted(para_lines.items()):
-            ocr_lines: list[OCRLine] = []
-            line_id = 1
-            for line_num, words in sorted(lines_dict.items()):
-                line_bbox = _union_bbox([w.bbox for w in words])
-                line_text = " ".join(w.text for w in words)
-                ocr_lines.append(
-                    OCRLine(
-                        line_id=line_id,
-                        bbox=line_bbox,
-                        text=line_text,
+        for block_num in sorted(block_paragraph_words):
+            paragraphs: list[OCRParagraph] = []
+            for par_num in sorted(block_paragraph_words[block_num]):
+                words = block_paragraph_words[block_num][par_num]
+                para_bbox = _union_bbox(
+                    [word.bbox for word in words if word.bbox is not None]
+                )
+                paragraphs.append(
+                    OCRParagraph(
+                        paragraph_id=para_id,
+                        bbox=para_bbox,
+                        text=" ".join(word.text for word in words),
                         words=words,
                     )
                 )
-                line_id += 1
+                para_id += 1
+            blocks.append(paragraphs)
 
-            para_bbox = _union_bbox([ln.bbox for ln in ocr_lines])
-            paragraphs.append(
-                OCRParagraph(
-                    paragraph_id=para_id,
-                    bbox=para_bbox,
-                    lines=ocr_lines,
-                )
-            )
-            para_id += 1
-
-        merged = self._merge_paragraphs(paragraphs)
+        merged = self._merge_paragraphs(blocks)
 
         return OCRPage(
             pdf_page_number=pdf_page_number,
@@ -304,79 +404,164 @@ class TesseractOCR:
 
     def _merge_paragraphs(
         self,
-        paragraphs: list[OCRParagraph],
+        blocks: list[list[OCRParagraph]],
     ) -> list[OCRParagraph]:
-        """Merge consecutive paragraphs whose vertical gap is below a threshold.
+        """Merge nearby blocks, then nearby paragraphs within each block.
 
-        The threshold is ``gap_ratio x median_line_height``, where
-        *median_line_height* is the median height of all :class:`OCRLine`
-        bounding boxes across all paragraphs on this page.  Paragraphs are
-        sorted top-to-bottom before merging; paragraphs whose tops overlap or
-        whose gap is strictly less than the threshold are combined.
+        Both passes use ``gap_ratio * median_word_height``, where *median_word_height* is the median height of all word bounding boxes on the page. A block's bounds are the union of its paragraph bounds. Blocks and paragraphs are sorted top-to-bottom, and adjacent regions whose vertical gap is strictly less than the threshold are combined.
 
-        The merged paragraph retains the ``paragraph_id`` of the first
-        paragraph in the group and gets a new bounding box that is the union
-        of all merged paragraphs' bounding boxes.  Line ``line_id`` values are
-        renumbered sequentially within each merged paragraph.
+        A merged paragraph retains the first paragraph's ID and combines its ordered words with the words of the following paragraph.
 
         Args:
-            paragraphs: List of :class:`OCRParagraph` objects to consider for
-                merging.  May be modified in place.
+            blocks: Paragraph groups organized by their original Tesseract block number.
 
         Returns:
-            A new list of :class:`OCRParagraph` objects after merging.
+            A flat list of paragraphs after both merge passes.
         """
-        if not paragraphs:
-            return paragraphs
+        non_empty_blocks = [block for block in blocks if block]
+        if not non_empty_blocks:
+            return []
 
-        # Compute median line height across all lines on this page
         all_heights = [
-            ln.bbox[3] - ln.bbox[1] for para in paragraphs for ln in para.lines
+            word.bbox[3] - word.bbox[1]
+            for block in non_empty_blocks
+            for para in block
+            for word in para.words
+            if word.bbox is not None
         ]
         if len(all_heights) >= 2:
-            median_line_height = statistics.median(all_heights)
+            median_word_height = statistics.median(all_heights)
         elif all_heights:
-            median_line_height = all_heights[0]
+            median_word_height = all_heights[0]
         else:
-            return paragraphs  # nothing to merge
+            return [para for block in non_empty_blocks for para in block]
 
-        gap_threshold = self.gap_ratio * median_line_height
+        gap_threshold = self.gap_ratio * median_word_height
 
-        # Sort paragraphs top-to-bottom by the top edge of their bbox
-        sorted_paras = sorted(paragraphs, key=lambda p: p.bbox[1])
+        def group_bbox(paragraphs: list[OCRParagraph]) -> tuple[int, int, int, int]:
+            return _union_bbox(
+                [para.bbox for para in paragraphs if para.bbox is not None]
+            )
 
-        merged: list[OCRParagraph] = []
-        current = sorted_paras[0]
+        # Merge nearby Tesseract blocks first.
+        sorted_blocks = sorted(
+            non_empty_blocks,
+            key=lambda block: (
+                group_bbox(block)[1],
+                group_bbox(block)[0],
+            ),
+        )
+        merged_blocks: list[list[OCRParagraph]] = []
+        current_block = list(sorted_blocks[0])
+        current_block_bbox = group_bbox(current_block)
 
-        for next_para in sorted_paras[1:]:
-            current_bottom = current.bbox[3]
-            next_top = next_para.bbox[1]
-            gap = next_top - current_bottom
-
+        for next_block in sorted_blocks[1:]:
+            next_block_bbox = group_bbox(next_block)
+            gap = next_block_bbox[1] - current_block_bbox[3]
             if gap < gap_threshold:
-                # Merge next_para into current
-                combined_lines = current.lines + next_para.lines
-                # Renumber line IDs sequentially
-                for idx, ln in enumerate(combined_lines, start=1):
-                    ln.line_id = idx
-                current = OCRParagraph(
-                    paragraph_id=current.paragraph_id,
-                    bbox=_union_bbox([current.bbox, next_para.bbox]),
-                    lines=combined_lines,
-                )
+                current_block.extend(next_block)
+                current_block_bbox = _union_bbox([current_block_bbox, next_block_bbox])
             else:
-                merged.append(current)
-                current = next_para
+                merged_blocks.append(current_block)
+                current_block = list(next_block)
+                current_block_bbox = next_block_bbox
+        merged_blocks.append(current_block)
 
-        merged.append(current)
-        return merged
+        # Then merge nearby paragraphs within each resulting block.
+        merged_paragraphs: list[OCRParagraph] = []
+        for block in merged_blocks:
+            sorted_paragraphs = sorted(
+                block,
+                key=lambda para: (
+                    para.bbox[1] if para.bbox is not None else 0,
+                    para.bbox[0] if para.bbox is not None else 0,
+                ),
+            )
+            current = sorted_paragraphs[0]
+
+            for next_para in sorted_paragraphs[1:]:
+                current_bbox = current.bbox
+                next_bbox = next_para.bbox
+                gap = (
+                    next_bbox[1] - current_bbox[3]
+                    if current_bbox is not None and next_bbox is not None
+                    else float("inf")
+                )
+
+                if gap < gap_threshold:
+                    combined_words = current.words + next_para.words
+                    combined_bbox = (
+                        _union_bbox([current_bbox, next_bbox])
+                        if current_bbox is not None and next_bbox is not None
+                        else current_bbox or next_bbox
+                    )
+                    current = OCRParagraph(
+                        paragraph_id=current.paragraph_id,
+                        bbox=combined_bbox,
+                        text=" ".join(word.text for word in combined_words),
+                        words=combined_words,
+                    )
+                else:
+                    merged_paragraphs.append(current)
+                    current = next_para
+
+            merged_paragraphs.append(current)
+        return merged_paragraphs
+
+    def filter_bounding_boxes(
+        self,
+        data: TesseractData,
+        min_width: int = 0,
+        min_height: int = 0,
+    ) -> TesseractData:
+        """Return OCR data containing only boxes that meet both size limits.
+
+        A box is rejected when either its width or height is below the requested minimum. Every list-valued OCR field is filtered by the same indices, so its values remain aligned with the retained ``text`` entries.
+
+        Args:
+            data: Raw TesseractData dictionary returned by pytesseract.
+            min_width: Minimum box width in pixels.
+            min_height: Minimum box height in pixels.
+
+        Returns:
+            Filtered TesseractData dictionary.
+
+        Raises:
+            ValueError: If min_width or min_height is negative.
+        """
+
+        if min_width < 0 or min_height < 0:
+            raise ValueError("minimum bounding-box dimensions must be non-negative")
+
+        text_entries = data.get("text", [])
+        widths = data.get("width", [])
+        heights = data.get("height", [])
+        retained_indices: list[int] = []
+        for index in range(len(text_entries)):
+            try:
+                width = int(widths[index])
+                height = int(heights[index])
+            except (IndexError, TypeError, ValueError):
+                continue
+            if width >= min_width and height >= min_height:
+                retained_indices.append(index)
+
+        filtered_data: TesseractData = {}
+        for field, values in data.items():
+            if isinstance(values, list):
+                filtered_data[field] = [
+                    values[index] for index in retained_indices if index < len(values)
+                ]
+            else:
+                filtered_data[field] = values
+        return filtered_data
 
     @staticmethod
     def _page_to_text(page: OCRPage) -> str:
         """Reconstruct plain text from a structured :class:`OCRPage`.
 
-        Lines within each paragraph are joined with a newline; paragraphs
-        are separated by a blank line.
+        Paragraphs are separated by a blank line; words within each paragraph
+        are joined with spaces.
 
         Args:
             page: The :class:`OCRPage` to convert.
@@ -384,14 +569,93 @@ class TesseractOCR:
         Returns:
             Plain-text representation of the page content.
         """
-        para_texts = [
-            "\n".join(ln.text for ln in para.lines) for para in page.paragraphs
-        ]
-        return "\n\n".join(para_texts)
+        return "\n\n".join(para.text for para in page.paragraphs)
 
-    # ------------------------------------------------------------------
-    # Output methods — require run() first
-    # ------------------------------------------------------------------
+    def annotate_image(
+        self,
+        font_path: str = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        font_size: int = 25,
+        box_width: int = 3,
+        high_conf_color: tuple[int, int, int] = (0, 191, 255),
+        low_conf_color: tuple[int, int, int] = (255, 0, 0),
+    ) -> Image.Image:
+        """Draw word-level OCR bounding boxes on an image, marking low-confidence detections.
+
+        Args:
+            confidence_threshold: Minimum confidence score for high-confidence highlighting.
+            font_path: Path to TrueType font file. Falls back to default font if unavailable.
+            font_size: Font size for bounding box labels.
+            box_width: Thickness of bounding box borders.
+            high_conf_color: RGB tuple for boxes with confidence >= threshold.
+            low_conf_color: RGB tuple for boxes with confidence < threshold.
+
+        Returns:
+            Annotated PIL Image.
+
+        Raises:
+            RuntimeError: If :meth:`run` has not been called yet.
+        """
+        self._require_run()
+        assert self._image is not None
+
+        pil_image = to_pil_image(self._image).copy()
+        draw = ImageDraw.Draw(pil_image)
+
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+        except OSError:
+            font = ImageFont.load_default(font_size)
+
+        data = self._filtered_raw or self._raw
+        text_entries = data.get("text", [])
+        conf_entries = data.get("conf", [])
+        left_entries = data.get("left", [])
+        top_entries = data.get("top", [])
+        width_entries = data.get("width", [])
+        height_entries = data.get("height", [])
+        # paragraph_entries = data.get("par_num", [])
+        # block_entries = data.get("block_num", [])
+        # level_entries = data.get("level", [])
+
+        for index in range(len(text_entries)):
+            recognized_text = str(text_entries[index]).strip()
+            try:
+                conf = float(conf_entries[index])
+            except (IndexError, TypeError, ValueError):
+                conf = -1.0
+
+            if not recognized_text or conf <= 0:
+                continue
+
+            try:
+                left = int(left_entries[index])
+                top = int(top_entries[index])
+                width = int(width_entries[index])
+                height = int(height_entries[index])
+            except (IndexError, TypeError, ValueError):
+                continue
+
+            color = (
+                high_conf_color if conf >= self.confidence_threshold else low_conf_color
+            )
+
+            draw.rectangle(
+                (left, top, left + width, top + height),
+                outline=color,
+                width=box_width,
+            )
+
+            label = f"{recognized_text} ({conf:.1f}%)"
+            # label = f"{str(block_entries[index]).strip()}, {str(paragraph_entries[index]).strip()}"
+            # label = ""
+            draw.text(
+                (left, max(top - font_size - 5, 0)),
+                label,
+                font=font,
+                fill=color,
+            )
+
+        return pil_image
 
     def visualize(
         self,
@@ -400,74 +664,18 @@ class TesseractOCR:
     ) -> None:
         """Draw word-level OCR bounding boxes on the source image and save it.
 
-        Words with confidence at or above :attr:`confidence_threshold` are
-        outlined in green; words below the threshold are outlined in red.
-        Each box is labelled with the recognised text and its confidence
-        percentage.  The font falls back to the PIL default when the DejaVu
-        Sans TrueType file is unavailable.
-
         Args:
-            destination_path: Directory in which to write the annotated image.
-                Created automatically if it does not exist.
+            destination_path: Directory in which to write the annotated image. Created automatically if it does not exist.
             save_name: Filename for the annotated image (e.g. ``"viz.jpg"``).
+            confidence_threshold: Optional threshold override.
 
         Raises:
             RuntimeError: If :meth:`run` has not been called yet.
         """
         self._require_run()
-        assert self._image_path is not None
-        assert self._raw is not None
-
         Path(destination_path).mkdir(parents=True, exist_ok=True)
-
-        image = Image.open(self._image_path).convert("RGB")
-        draw = ImageDraw.Draw(image)
-
-        try:
-            font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                25,
-            )
-        except OSError:
-            font = ImageFont.load_default()
-
-        raw = self._raw
-        for index in range(len(raw["text"])):
-            recognized_text = str(raw["text"][index]).strip()
-            try:
-                confidence_score = float(raw["conf"][index])
-            except (TypeError, ValueError):
-                confidence_score = -1.0
-
-            if not recognized_text or confidence_score < 0:
-                continue
-
-            left = int(raw["left"][index])
-            top = int(raw["top"][index])
-            width = int(raw["width"][index])
-            height = int(raw["height"][index])
-
-            color = (
-                (0, 200, 0)
-                if confidence_score >= self.confidence_threshold
-                else (220, 0, 0)
-            )
-
-            draw.rectangle(
-                (left, top, left + width, top + height),
-                outline=color,
-                width=2,
-            )
-
-            label = f"{recognized_text} ({confidence_score:.1f}%)"
-            draw.text(
-                (left, max(top - 30, 0)),
-                label,
-                font=font,
-                fill=color,
-            )
-
-        image.save(str(Path(destination_path) / save_name))
+        annotated = self.annotate_image()
+        annotated.save(str(Path(destination_path) / save_name))
 
     def save_text(
         self,
@@ -476,12 +684,10 @@ class TesseractOCR:
     ) -> None:
         """Save the OCR result as a plain-text file.
 
-        The text is reconstructed from the structured :class:`OCRPage` using
-        :meth:`_page_to_text` and then passed through :func:`normalize_text`.
+        The text is reconstructed from the structured :class:`OCRPage` using :meth:`_page_to_text` and then passed through :func:`normalize_text`.
 
         Args:
-            destination_path: Directory in which to write the text file.
-                Created automatically if it does not exist.
+            destination_path: Directory in which to write the text file. Created automatically if it does not exist.
             save_name: Filename for the output (e.g. ``"page_001.txt"``).
 
         Raises:
@@ -491,8 +697,7 @@ class TesseractOCR:
         assert self._page is not None
 
         Path(destination_path).mkdir(parents=True, exist_ok=True)
-        text = normalize_text(self._page_to_text(self._page))
-        (Path(destination_path) / save_name).write_text(text, encoding="utf-8")
+        (Path(destination_path) / save_name).write_text(self.text, encoding="utf-8")
 
     def save_json(
         self,
@@ -501,12 +706,10 @@ class TesseractOCR:
     ) -> None:
         """Serialize the :class:`OCRPage` result to a JSON file.
 
-        The output format matches the schema defined by the Pydantic models
-        and is compatible with the structure shown in ``template.json``.
+        The output format matches the schema defined by the Pydantic models and is compatible with the structure shown in ``template.json``.
 
         Args:
-            destination_path: Directory in which to write the JSON file.
-                Created automatically if it does not exist.
+            destination_path: Directory in which to write the JSON file. Created automatically if it does not exist.
             save_name: Filename for the JSON output (e.g. ``"page_001.json"``).
 
         Raises:
@@ -521,10 +724,6 @@ class TesseractOCR:
             encoding="utf-8",
         )
 
-
-# ---------------------------------------------------------------------------
-# Default VLM OCR Prompt
-# ---------------------------------------------------------------------------
 
 DEFAULT_VLM_PROMPT = """You are an OCR (Optical Character Recognition) engine. Your task is to extract all visible text from the uploaded image as accurately and completely as possible.
 
@@ -561,18 +760,12 @@ STOP GENERATING IMMEDIATELY.
 """
 
 
-# ---------------------------------------------------------------------------
-# VLMOCR
-# ---------------------------------------------------------------------------
-
-
 class VLMOCR:
     """Vision-Language Model (VLM) OCR engine using Ollama.
 
     Transcribes an image using a multimodal model (e.g. Qwen2-VL / Qwen2.5-VL).
-    Unlike traditional OCR, VLMs output raw textual transcriptions without spatial bounding boxes or per-word confidence scores.
 
-    The extracted text is normalized with :func:`normalize_text` and structured into the unified :class:`OCRPage` schema (with ``method="vlm"``, and ``bbox=None`` for words, lines, and paragraphs), ready for downstream line/word matching with Tesseract.
+    The extracted text is normalized with :func:`normalize_text` and structured into the unified :class:`OCRPage` schema (with ``method="vlm"`` and ``bbox=None`` for words and paragraphs).
 
     Args:
         model: Name of the Ollama vision-language model. Defaults to ``"qwen3-vl:2b-instruct"``.
@@ -609,17 +802,17 @@ class VLMOCR:
 
     def run(
         self,
-        image_source: str | Path | bytes,
+        image_source: str | Path | bytes | np.ndarray | Image.Image,
         *,
-        pdf_page_number: int,
-        document_page_number: int,
-        page_name: str,
+        pdf_page_number: int = 1,
+        document_page_number: int = 1,
+        page_name: str = "image",
         options: dict[str, Any] | None = None,
     ) -> OCRPage:
         """Run VLM OCR on a single image and store the structured result.
 
         Args:
-            image_source: Path to the image file or raw image bytes.
+            image_source: Path to the image file, raw image bytes, NumPy array, or PIL Image.
             pdf_page_number: 1-indexed page number from the PDF reader.
             document_page_number: Actual document page number.
             page_name: Human-readable page label (e.g. ``"0040.jpg"``).
@@ -636,12 +829,10 @@ class VLMOCR:
 
         if isinstance(image_source, (str, Path)):
             self._image_path = Path(image_source)
-            image_bytes = self._image_path.read_bytes()
-        elif isinstance(image_source, bytes):
-            self._image_path = None
-            image_bytes = image_source
         else:
-            raise TypeError(f"Unsupported image_source type: {type(image_source)}")
+            self._image_path = None
+
+        image_bytes = to_image_bytes(image_source)
 
         call_options = {**self.options, **(options or {})}
 
@@ -681,6 +872,17 @@ class VLMOCR:
         return self._page  # type: ignore[return-value]
 
     @property
+    def text(self) -> str:
+        """The normalized plain-text produced by the VLM.
+
+        Raises:
+            RuntimeError: If :meth:`run` has not been called yet.
+        """
+        self._require_run()
+        assert self._page is not None
+        return normalize_text("\n\n".join(para.text for para in self._page.paragraphs))
+
+    @property
     def raw_text(self) -> str:
         """The raw un-normalized text string returned by the VLM.
 
@@ -716,9 +918,7 @@ class VLMOCR:
     ) -> OCRPage:
         """Parse normalized VLM text into a structured :class:`OCRPage`.
 
-        Paragraphs are demarcated by blank lines (two or more newlines),
-        lines by single newlines, and words by whitespace. Bounding boxes
-        and confidences are set to None.
+        Paragraphs are demarcated by blank lines (two or more newlines). All whitespace within a paragraph separates words; bounding boxes and confidences are set to None.
         """
         paragraphs: list[OCRParagraph] = []
 
@@ -728,27 +928,17 @@ class VLMOCR:
         ]
 
         for p_idx, p_text in enumerate(raw_paragraphs, start=1):
-            lines: list[OCRLine] = []
-            raw_lines = [ln.strip() for ln in p_text.splitlines() if ln.strip()]
-
-            for l_idx, l_text in enumerate(raw_lines, start=1):
-                words = [
-                    OCRWord(text=w, bbox=None, confidence=None) for w in l_text.split()
-                ]
-                lines.append(
-                    OCRLine(
-                        line_id=l_idx,
-                        bbox=None,
-                        text=l_text,
-                        words=words,
-                    )
-                )
+            words = [
+                OCRWord(text=word_text, bbox=None, confidence=None)
+                for word_text in p_text.split()
+            ]
 
             paragraphs.append(
                 OCRParagraph(
                     paragraph_id=p_idx,
                     bbox=None,
-                    lines=lines,
+                    text=" ".join(word.text for word in words),
+                    words=words,
                 )
             )
 
@@ -778,10 +968,7 @@ class VLMOCR:
         assert self._page is not None
 
         Path(destination_path).mkdir(parents=True, exist_ok=True)
-        para_texts = [
-            "\n".join(ln.text for ln in para.lines) for para in self._page.paragraphs
-        ]
-        text = "\n\n".join(para_texts)
+        text = self.text
         if text and not text.endswith("\n"):
             text += "\n"
         (Path(destination_path) / save_name).write_text(text, encoding="utf-8")
@@ -810,237 +997,14 @@ class VLMOCR:
         )
 
 
-# ---------------------------------------------------------------------------
-# normalize_text — module-level function used by gui.py
-# ---------------------------------------------------------------------------
-
-
-def normalize_text(text: str) -> str:
-    """Normalize OCR text by preserving paragraph breaks and placing
-    sentence-ending full stops on their own lines.
-
-    OCR output often wraps a single sentence across multiple lines. This
-    function first collapses those soft-wrap single newlines into spaces so
-    that split sentences are rejoined.  Double (or more) consecutive newlines
-    are retained as a single blank-line paragraph separator.
-
-    Because the source documents may contain a space *before* a full stop
-    (e.g. ``"word . Next sentence"``), the sentence-end pattern absorbs any
-    optional horizontal whitespace preceding the period as well as the
-    whitespace that follows it.  This avoids treating mid-line decorated dots
-    as sentence boundaries while still normalising ``"word.  Next"`` and
-    ``"word . Next"`` the same way.
-
-    Finally, if the resulting text ends with a full stop (optionally preceded
-    by horizontal whitespace and not already followed by a newline) a trailing
-    newline is appended.
-
-    Args:
-        text: Raw OCR text, potentially containing soft-wrapped lines and
-            spaces before punctuation marks.
-
-    Returns:
-        Normalized text where each sentence ending in a full stop starts on
-        its own line and paragraphs are separated by a blank line.
-    """
-    # Step 1 — collapse single newlines (soft wraps) to spaces;
-    #           collapse two-or-more newlines to a single blank line (paragraph break).
-    normalized = re.sub(
-        r"\n+",
-        lambda m: "\n\n" if len(m.group()) >= 2 else " ",
-        text,
-    )
-
-    # Step 2 — treat "[ \t]*.<whitespace>+" as a sentence boundary.
-    #           The optional leading [ \t]* handles documents where a space
-    #           appears before the period (e.g. "word . Next").
-    #           The captured leading space (if any) is discarded so the period
-    #           lands directly after the last word character.
-    normalized = re.sub(r"[ \t]*\.[ \t]+", ".\n", normalized)
-
-    # Step 3 — append a trailing newline only if the text ends with a full stop
-    #           (optionally preceded by horizontal whitespace) and does not already
-    #           end with a newline.  Using endswith("\n") avoids the ambiguity of
-    #           re.search r"\.[ \t]*$" matching before the implicit \n that Python's
-    #           $ anchor sees at the end of a string.
-    if not normalized.endswith("\n") and re.search(r"[ \t]*\.$", normalized):
-        normalized = re.sub(r"[ \t]*\.$", ".\n", normalized)
-
-    return normalized
-
-
-# ---------------------------------------------------------------------------
-# merge_box — stub (not yet implemented)
-# ---------------------------------------------------------------------------
-
-
-def merge_box(data: TesseractData) -> None:
-    """Merge related OCR bounding boxes using heuristic rules.
-
-    Args:
-        data: OCR data containing the bounding boxes to merge.
-    """
-
-
-# ---------------------------------------------------------------------------
-# Module-level shims — backward compatibility with gui.py and benchmark_viet.py
-# ---------------------------------------------------------------------------
-
-
-def get_ocr_data(
-    image_path: str | Path,
-    config: str = "--psm 3",
-    lang: str = "vie",
-) -> TesseractData:
-    """Return raw Tesseract word-level data for *image_path*.
-
-    This is a module-level shim kept for backward compatibility with
-    ``gui.py`` and ``benchmark_viet.py``.  Prefer :meth:`TesseractOCR.run`
-    for new code.
-
-    Args:
-        image_path: Path to the image to process.
-        config: Tesseract page segmentation configuration string.
-        lang: Tesseract language code.
-
-    Returns:
-        A :class:`TesseractData` dictionary as returned by
-        ``pytesseract.image_to_data``.
-    """
-    return pytesseract.image_to_data(
-        str(image_path),
-        output_type=pytesseract.Output.DICT,
-        config=config,
-        lang=lang,
-    )
-
-
-def get_ocr_text(
-    image_path: str | Path,
-    config: str = "--psm 3",
-    lang: str = "vie",
-) -> str:
-    """Return the raw string recognized in *image_path* by Tesseract.
-
-    This is a module-level shim kept for backward compatibility with
-    ``benchmark_viet.py``.  Prefer :meth:`TesseractOCR.run` for new code.
-
-    Args:
-        image_path: Path to the image to process.
-        config: Tesseract page segmentation configuration string.
-        lang: Tesseract language code.
-
-    Returns:
-        The raw text string recognized in the image.
-    """
-    return pytesseract.image_to_string(
-        str(image_path),
-        config=config,
-        lang=lang,
-    )
-
-
-def visualize(
-    image_path: str | Path,
-    data: TesseractData,
-    destination_path: str | Path,
-    save_name: str | Path,
-    confidence_threshold: float = 85.0,
-) -> None:
-    """Draw word-level OCR bounding boxes on *image_path* and save the result.
-
-    This is a module-level shim kept for backward compatibility with
-    ``benchmark_viet.py``.  Prefer :meth:`TesseractOCR.visualize` for new
-    code.
-
-    Args:
-        image_path: Path to the source image.
-        data: OCR data returned by :func:`get_ocr_data`.
-        destination_path: Directory in which to write the annotated image.
-            Created automatically if it does not exist.
-        save_name: Filename for the annotated image.
-        confidence_threshold: Words below this confidence score are drawn in
-            red; words at or above it are drawn in green.
-    """
-    Path(destination_path).mkdir(parents=True, exist_ok=True)
-
-    image = Image.open(image_path).convert("RGB")
-    draw = ImageDraw.Draw(image)
-
-    try:
-        font = ImageFont.truetype(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            25,
-        )
-    except OSError:
-        font = ImageFont.load_default()
-
-    for index in range(len(data["text"])):
-        recognized_text = str(data["text"][index]).strip()
-        try:
-            conf = float(data["conf"][index])
-        except (TypeError, ValueError):
-            conf = -1.0
-
-        if not recognized_text or conf < 0:
-            continue
-
-        left = int(data["left"][index])
-        top = int(data["top"][index])
-        width = int(data["width"][index])
-        height = int(data["height"][index])
-
-        color = (0, 200, 0) if conf >= confidence_threshold else (220, 0, 0)
-
-        draw.rectangle(
-            (left, top, left + width, top + height),
-            outline=color,
-            width=2,
-        )
-        draw.text(
-            (left, max(top - 30, 0)),
-            f"{recognized_text} ({conf:.1f}%)",
-            font=font,
-            fill=color,
-        )
-
-    image.save(str(Path(destination_path) / save_name))
-
-
-def save_text(
-    text: str,
-    destination_path: str | Path,
-    save_name: str | Path,
-) -> None:
-    """Write *text* to a file inside *destination_path*.
-
-    This is a module-level shim kept for backward compatibility with
-    ``benchmark_viet.py``.  Prefer :meth:`TesseractOCR.save_text` for new
-    code.
-
-    Args:
-        text: Text content to write.
-        destination_path: Directory in which to write the file.
-            Created automatically if it does not exist.
-        save_name: Filename for the output text file.
-    """
-    Path(destination_path).mkdir(parents=True, exist_ok=True)
-    (Path(destination_path) / save_name).write_text(text, encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# main — demonstration
-# ---------------------------------------------------------------------------
-
-
 def main() -> None:
     """Run both TesseractOCR and VLMOCR on a sample image and write outputs."""
 
     ocr_configs = ["--psm 3", "--psm 6"]
     source_directory = Path("Dong_hang/test")
     destination_directory = Path("Dong_hang/test")
-    image_file_name = "0100.png"
-    image_path = source_directory / image_file_name
+    image_file_name = "0040.jpg"
+    image_path = source_directory / "0" / image_file_name
 
     # 1. Run Tesseract OCR
     print("--- Running TesseractOCR ---")
@@ -1048,8 +1012,8 @@ def main() -> None:
     try:
         tess_page = tesseract_ocr.run(
             image_path,
-            pdf_page_number=40,
-            document_page_number=40,
+            pdf_page_number=100,
+            document_page_number=100,
             page_name=image_file_name,
             config=ocr_configs[0],
         )
@@ -1057,39 +1021,39 @@ def main() -> None:
         tesseract_ocr.save_text(destination_directory, "hypo_tesseract.txt")
         tesseract_ocr.save_json(destination_directory, "hypo_tesseract.json")
 
-        tess_line_count = sum(len(p.lines) for p in tess_page.paragraphs)
+        tess_word_count = sum(len(p.words) for p in tess_page.paragraphs)
         print(
-            f"[Tesseract] Extracted {tess_line_count} line(s) "
+            f"[Tesseract] Extracted {tess_word_count} word(s) "
             f"across {len(tess_page.paragraphs)} paragraph(s)."
         )
     except Exception as exc:
         print(f"[Tesseract] Failed: {exc}")
 
-    # 2. Run VLM OCR
-    print("\n--- Running VLMOCR ---")
-    vlm_ocr = VLMOCR()
-    try:
-        vlm_page = vlm_ocr.run(
-            image_path,
-            pdf_page_number=40,
-            document_page_number=40,
-            page_name=image_file_name,
-        )
-        vlm_ocr.save_text(destination_directory, "hypo_vlm.txt")
-        vlm_ocr.save_json(destination_directory, "hypo_vlm.json")
+    # # 2. Run VLM OCR
+    # print("\n--- Running VLMOCR ---")
+    # vlm_ocr = VLMOCR()
+    # try:
+    #     vlm_page = vlm_ocr.run(
+    #         image_path,
+    #         pdf_page_number=40,
+    #         document_page_number=40,
+    #         page_name=image_file_name,
+    #     )
+    #     vlm_ocr.save_text(destination_directory, "hypo_vlm.txt")
+    #     vlm_ocr.save_json(destination_directory, "hypo_vlm.json")
 
-        vlm_line_count = sum(len(p.lines) for p in vlm_page.paragraphs)
-        print(
-            f"[VLM] Extracted {vlm_line_count} line(s) "
-            f"across {len(vlm_page.paragraphs)} paragraph(s)."
-        )
-        if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
-            print(
-                f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
-                f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
-            )
-    except Exception as exc:
-        print(f"[VLM] Failed: {exc}")
+    #     vlm_word_count = sum(len(p.words) for p in vlm_page.paragraphs)
+    #     print(
+    #         f"[VLM] Extracted {vlm_word_count} word(s) "
+    #         f"across {len(vlm_page.paragraphs)} paragraph(s)."
+    #     )
+    #     if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
+    #         print(
+    #             f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
+    #             f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
+    #         )
+    # except Exception as exc:
+    #     print(f"[VLM] Failed: {exc}")
 
 
 if __name__ == "__main__":
