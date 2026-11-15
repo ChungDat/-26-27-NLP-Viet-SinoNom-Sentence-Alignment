@@ -13,18 +13,37 @@
         {
           "paragraph_id": 1,
           "bbox": [100, 200, 1200, 500],
-          "lines": [
+          "text": "Đây là nội dung văn bản. abczyz",
+          "words": [
             {
-              "line_id": 1,
-              "bbox": [100, 200, 1200, 500],
-              "text": "Đây là nội dung văn bản.",
-              "words": [
-                {
-                  "bbox": [100, 200, 180, 250],
-                  "text": "Đây",
-                  "confidence": 95.0
-                }
-              ]
+              "bbox": null,
+              "text": "Đây",
+              "confidence": null
+            },
+            {
+              "bbox": [1716, 375, 1802, 454],
+              "text": "là nội",
+              "confidence": 96.0
+            },
+            {
+              "bbox": [1862, 421, 1888, 431],
+              "text": "dung",
+              "confidence": 96.0
+            },
+            {
+              "bbox": [2779, 384, 3098, 472],
+              "text": "văn",
+              "confidence": 58.0
+            },
+            {
+              "bbox": [1635, 421, 1662, 426],
+              "text": "bản.",
+              "confidence": 96.0
+            },
+            {
+              "bbox": [1716, 375, 1802, 454],
+              "text": "abcxyz",
+              "confidence": 96.0
             }
           ]
         }
