@@ -191,7 +191,6 @@ def _align_paragraph_words(
 
 
 def _compute_warnings(
-    tess_page: OCRPage | None,
     vlm_source: OCRPage | str | None,
     editor_text: str,
     max_lookahead: int = 5,
@@ -252,26 +251,6 @@ def _compute_warnings(
                         "msg": d["msg"],
                     }
                 )
-
-    # Check Tesseract low-confidence words
-    if tess_page is not None:
-        for i, tp in enumerate(tess_page.paragraphs):
-            para_label = f"Paragraph {i + 1}"
-            for tw in tp.words:
-                if (
-                    tw.confidence is not None
-                    and tw.confidence < LOW_CONFIDENCE_THRESHOLD
-                ):
-                    warnings.append(
-                        {
-                            "type": "low_conf",
-                            "para": i,
-                            "word": tw.text,
-                            "conf": tw.confidence,
-                            "label": para_label,
-                            "msg": f'Low-confidence word "{tw.text}" ({tw.confidence:.1f}%)',
-                        }
-                    )
 
     return warnings
 
@@ -567,12 +546,11 @@ def main() -> None:
     current_text = st.session_state.get(editor_key, "")
     current_vlm_text = st.session_state.get(vlm_key, "")
     warnings = _compute_warnings(
-        tess_result,
         current_vlm_text,
         current_text,
     )
 
-    col_img, col_text, col_warn = st.columns([1.5, 1, 1])
+    col_img, col_warn, col_text = st.columns([1.5, 1, 1])
 
     with col_img:
         col_mode, col_rerun = st.columns([1, 1])
@@ -615,6 +593,17 @@ def main() -> None:
             )
         if vlm_error:
             st.error(f"VLM failed: {vlm_error}")
+
+    with col_warn:
+        if warnings:
+            icons = {"mismatch": "⚡", "orphan": "🔀"}
+            st.write(f"⚠️ {len(warnings)} Warning(s) & Discrepancies")
+            with st.container(height=300, border=True):
+                for w in warnings:
+                    icon = icons.get(w["type"], "⚠️")
+                    st.markdown(f"{icon} **{w['label']}** - {w['msg']}")
+        else:
+            st.success("✅ No mismatches detected.")
 
     with col_text:
         st.subheader("VLM Reference Text")
@@ -686,17 +675,6 @@ def main() -> None:
             if st.button("Next →", disabled=next_disabled):
                 st.session_state.ocr_current_index = index + 1
                 st.rerun()
-
-    with col_warn:
-        if warnings:
-            icons = {"mismatch": "⚡", "low_conf": "🔴", "orphan": "🔀"}
-            st.write(f"⚠️ {len(warnings)} Warning(s) & Discrepancies")
-            with st.container(height=300, border=True):
-                for w in warnings:
-                    icon = icons.get(w["type"], "⚠️")
-                    st.markdown(f"{icon} **{w['label']}** - {w['msg']}")
-        else:
-            st.success("✅ No mismatches or low-confidence words detected.")
 
     # finalize
     all_confirmed = all(confirmed_flags[:total])

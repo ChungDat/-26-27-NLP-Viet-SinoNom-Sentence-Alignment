@@ -1,0 +1,5024 @@
+{
+  "source": "T1_Sách Truyện Các Thánh (Tháng 1).pdf",
+  "language": "vie",
+  "page_count": 5,
+  "width": 4445,
+  "height": 6306,
+  "pages": [
+    {
+      "pdf_page_number": 21,
+      "document_page_number": 21,
+      "page_name": "page_0021",
+      "method": "reviewed",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": null,
+          "text": "- 21 - ( 457 )",
+          "words": [
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "21",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "457",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ")",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 2,
+          "bbox": null,
+          "text": "mà giữ đạo nên. Ai kể cho xiết được, biết bao nhiêu người xưa nay đã quyết lòng bỏ đàng tội lỗi, đi đàng nhân đức. Kẻ thì trước kiêu ngạo sau nên khiêm nhường, người thì trước mê đắm xác thịt, sau ăn ở thanh sạch, hay là trước mê sự hèn thế gian, sau chỉ quí, chỉ mến những sự trên trời. Mà sự ấy bởi đâu ? Cứ sự thường, bởi xem sách Truyện Các Thánh.",
+          "words": [
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "giữ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đạo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Ai",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kể",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xiết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "biết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bao",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiêu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xưa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quyết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lòng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bỏ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đàng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tội",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lỗi,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đàng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhân",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đức.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trước",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kiêu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngạo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khiêm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhường,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trước",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mê",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đắm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xác",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thịt,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ăn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thanh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sạch,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trước",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mê",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hèn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thế",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gian,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chỉ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quí,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chỉ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mến",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "những",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trời.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bởi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đâu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "?",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Cứ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thường,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bởi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xem",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Truyện",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh.",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 3,
+          "bbox": null,
+          "text": "Vì chưng, ta chớ nghĩ rằng Các Thánh ấy là loài khác, chẳng phải một loài như ta. Chớ nghĩ : Các Thánh chẳng phải khó nhọc gì, tự nhiên nên lọn lành nên thánh làm vậy, hay là bởi phép lạ Đức Chúa Trời làm đâu. Các Thánh ấy cũng có xác thịt yếu đuối, có tính mê nết xấu như ta, đã gặp nhiều sự cheo leo, nhiều cơn hiểm nghèo, bởi sắc dục dấy lên, ma quỉ cám dô, thế gian dỗ dành, có khi phải những sự ấy khốn cực cay đắng hơn ta nhiều phần. Song le các Thánh ấy đã quyết ép mình hãm xác, và đã trông cậy Đức Chúa Trời liên, đã thà chịu mọi sự khó mà chẳng thà lỗi nghĩa cùng Chúa mình. Vả lại, dù đấng bậc nào trọng hèn ở thế gian",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Vì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chưng,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chớ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghĩ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "rằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "loài",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khác,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "loài",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chớ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghĩ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ":",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhọc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gì,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lọn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lành",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vậy,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bởi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lạ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đâu.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xác",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thịt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "yếu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đuối,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tính",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mê",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xấu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gặp",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cheo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "leo,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cơn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hiểm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghèo,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bởi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sắc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dục",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lên,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ma",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quỉ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cám",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dô,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thế",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gian",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dỗ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dành,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "những",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khốn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cực",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đắng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hơn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phần.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Song",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "le",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quyết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hãm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xác,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "và",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cậy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "liên,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mọi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lỗi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghĩa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cùng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Vả",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lại,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dù",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bậc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trọng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hèn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thế",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gian",
+              "confidence": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pdf_page_number": 22,
+      "document_page_number": 22,
+      "page_name": "page_0022",
+      "method": "reviewed",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": null,
+          "text": "- 22 - ( 456 )",
+          "words": [
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "22",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "456",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ")",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 2,
+          "bbox": null,
+          "text": "này, cũng đã có người nên Thánh, chẳng kỵ kẻ sang trọng giàu có, kẻ hèn hạ khó nghèo, kẻ ở nơi thanh vắng xa thế gian, hay là kẻ mắc vướng nhiều việc đời, thì thứ bậc nào cũng có người đã nên Thánh. Lại có Đấng Thánh, đang khi sống làm nhiều việc cả thể, làm nhiều phép lạ, song cũng có Đấng lót đời mình những làm các việc thường, bề ngoài không làm phép lạ gì. Về sau, khi chết đoạn thì Đức Chúa Trời mới tỏ ra công nghiệp Đấng ấy trọng vọng là dường nào ! Cho nên, khi ta xem Sách Truyện Các Thánh, thì phải mượn lời ông Thánh Aucutinh mà trách mình rằng : Việc ông Thánh nọ, bà Thánh kia đã làm khi trước, mà sao mình không làm được. Sao không tha cho kẻ đã mất lòng mình được ? Sao không ở hiền lành khiêm nhường sạch sẽ được ru ? Không chịu bằng lòng các sự khốn khó tai vạ đời này như các Đấng ấy được ru ? Tuy rằng : Ta không có thể bắt chước các Thánh trong mọi điều được, song cũng có nhiều điều, chẳng kỳ bậc nào cũng có thể bắt chước, như sự mộ mến việc thờ phượng Đức Chúa Trời, sự thương yêu người",
+          "words": [
+            {
+              "bbox": null,
+              "text": "này,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kỵ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sang",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trọng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "giàu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hèn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hạ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghèo,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nơi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thanh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vắng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thế",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gian,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mắc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vướng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "việc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đời,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thứ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bậc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Lại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đang",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sống",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "việc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cả",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thể,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lạ,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "song",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lót",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "những",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "việc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thường,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bề",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngoài",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lạ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gì.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Về",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đoạn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mới",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tỏ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ra",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "công",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghiệp",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trọng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vọng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dường",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "!",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xem",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Sách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Truyện",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mượn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Aucutinh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "rằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ":",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Việc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nọ,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kia",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trước,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sao",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Sao",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tha",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mất",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lòng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "?",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Sao",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hiền",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lành",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khiêm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhường",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sạch",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sẽ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ru",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "?",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lòng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khốn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tai",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vạ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "này",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ru",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "?",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tuy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "rằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ":",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Ta",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "không",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thể",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chước",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mọi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "điều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "song",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "điều,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kỳ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bậc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thể",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chước,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mộ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mến",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "việc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thờ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phượng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thương",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "yêu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pdf_page_number": 23,
+      "document_page_number": 23,
+      "page_name": "page_0023",
+      "method": "reviewed",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": null,
+          "text": "- 23 - ( 455 )",
+          "words": [
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "23",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "455",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ")",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 2,
+          "bbox": null,
+          "text": "ta, coi sóc trong nhà cho phải phép đạo, sự ở khiêm nhường hiền lành, sự ép mình quyết chừa bỏ tội, lánh các dịp làm cho mình quen phạm tội, siêng năng đọc kinh, năng đến nhà thờ xem lễ, nghe giảng, nghe sách, năng xưng tội chịu lễ, ép mình chịu các sự khốn khó mình gặp hằng ngày như Câu rút Đức Chúa Trời đã định cho mình phải vác. Nên ai xem sách Truyện Các Thánh có ý tứ so sánh các điều ấy và nhiều điều khác nữa vào trí khôn mà ngẫm nghĩ suy đi xét lại thì được ích cho mình biết là ngần nào !",
+          "words": [
+            {
+              "bbox": null,
+              "text": "ta,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "coi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sóc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đạo,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khiêm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhường",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hiền",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lành,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quyết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chừa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bỏ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tội,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dịp",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quen",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phạm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tội,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "siêng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "năng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đọc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kinh,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "năng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đến",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thờ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xem",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lễ,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghe",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "giảng,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghe",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sách,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "năng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xưng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tội",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lễ,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khốn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "gặp",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Câu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "rút",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "định",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vác.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ai",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xem",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Truyện",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ý",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tứ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "so",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "điều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "và",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "điều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khác",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nữa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trí",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khôn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngẫm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghĩ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "suy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xét",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ích",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "biết",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngần",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "!",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 3,
+          "bbox": null,
+          "text": "Ấy vậy, chẳng những là các nhà xứ, nhà mụ phải quí sách này, mà lại bổn đạo cũng nên sắm mà đọc hằng ngày cho mỗi người trong họ trong nhà được nghe cùng tích vào lòng, và bắt chước vừa sức mình, để mà vào đàng theo lối các Thánh đã dẫn cho ta ở đời này, thì lại được thông công phúc thanh nhàn làm một với các Thánh ở đời sau chẳng cùng.",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vậy,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "những",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xứ,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mụ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "quí",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "này,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bổn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đạo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sắm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đọc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hằng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mỗi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "họ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghe",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cùng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tích",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lòng,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "và",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chước",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vừa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mình,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "để",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đàng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "theo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lối",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dẫn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ta",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "này,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "công",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phúc",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thanh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhàn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "với",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cùng.",
+              "confidence": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pdf_page_number": 24,
+      "document_page_number": 24,
+      "page_name": "page_0024",
+      "method": "reviewed",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": null,
+          "text": "- 24 - ( 454 )",
+          "words": [
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "24",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "454",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ")",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 2,
+          "bbox": null,
+          "text": "Tại Trường Lý Đoán Kẻ Sở ngày mồng một, tháng Novembêrê, năm một nghìn chín trăm năm (1905).",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Tại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trường",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Lý",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đoán",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Sở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mồng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Novembêrê,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "năm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghìn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chín",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trăm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "năm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(1905).",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 3,
+          "bbox": null,
+          "text": "Giuse Maria Kính ký",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Giuse",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Maria",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Kính",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ký",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 4,
+          "bbox": null,
+          "text": "Cho được hiểu thứ tự đã cứ mà dọn sách này phải nhớ : Trong Thánh Ighêrêgia ngày mồng một, tháng Giêng là ngày lễ Đặt Tên Đức Chúa Giêsu. Năm nào cũng vậy. Mà tháng Giêng có 31 ngày, tháng Hai có 28 ngày, tháng Ba có 31 ngày, tháng Tư 30 ngày, tháng Năm 31 ngày, tháng Sáu 30 ngày, tháng Bảy, tháng Tám 31 ngày, tháng Chín 30 ngày, tháng Mười 31 ngày, tháng Mười Một 30 ngày, tháng Mười Hai hay là tháng Chạp có 31 ngày.",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hiểu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thứ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cứ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dọn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sách",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "này",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhớ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ":",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thánh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Ighêrêgia",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mồng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lễ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đặt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêsu.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Năm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nào",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vậy.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Hai",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "28",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Ba",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tư",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "30",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Năm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Sáu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "30",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Bảy,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tám",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chín",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "30",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Mười",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Mười",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Một",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "30",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Mười",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Hai",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hay",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chạp",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "có",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "31",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày.",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 5,
+          "bbox": null,
+          "text": "Vì lẽ ấy thì bắt đầu nói về lễ Đặt Tên Đức Chúa Giêsu là ngày mồng một, tháng Giêng.",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Vì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lẽ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đầu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nói",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "về",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lễ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đặt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêsu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mồng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêng.",
+              "confidence": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pdf_page_number": 25,
+      "document_page_number": 25,
+      "page_name": "page_0025",
+      "method": "reviewed",
+      "paragraphs": [
+        {
+          "paragraph_id": 1,
+          "bbox": null,
+          "text": "- 25 - ( 453 )",
+          "words": [
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "25",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "-",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "(",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "453",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ")",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 2,
+          "bbox": null,
+          "text": "SÁCH TRUYỆN CÁC THÁNH",
+          "words": [
+            {
+              "bbox": null,
+              "text": "SÁCH",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "TRUYỆN",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "CÁC",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "THÁNH",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 3,
+          "bbox": null,
+          "text": "THÁNG GIANUARIÔ cũng là Tháng Giêng",
+          "words": [
+            {
+              "bbox": null,
+              "text": "THÁNG",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "GIANUARIÔ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tháng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêng",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 4,
+          "bbox": null,
+          "text": "NGÀY MỒNG MỘT",
+          "words": [
+            {
+              "bbox": null,
+              "text": "NGÀY",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "MỒNG",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "MỘT",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 5,
+          "bbox": null,
+          "text": "Lễ Đặt Tên Đức Chúa Giêsu",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Lễ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đặt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêsu",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 6,
+          "bbox": null,
+          "text": "Thuở xưa trong đạo cũ Đức Chúa Trời đã truyền cho ông Abaraong, hễ các trẻ nam sinh ra được tám ngày thì làm phép cắt bì chúng nó, phép ấy là dấu riêng chỉ dân thờ phượng Đức Chúa Trời, và ngày sau sẽ sinh ra Đấng Cứu Thế ; lại kẻ chịu phép ấy được khỏi tội tổ tông truyền, như bây giờ kẻ chịu phép Rửa Tội khác nhau ít nhiều vậy mà thôi.",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Thuở",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xưa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trong",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đạo",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cũ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "truyền",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cho",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Abaraong,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hễ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nam",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sinh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ra",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tám",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chúng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nó,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dấu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "riêng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chỉ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "dân",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thờ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phượng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "và",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sẽ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sinh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ra",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đấng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Cứu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thế",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ";",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lại",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khỏi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tội",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tổ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tông",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "truyền,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "như",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bây",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "giờ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "kẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Rửa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Tội",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khác",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ít",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhiều",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vậy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thôi.",
+              "confidence": null
+            }
+          ]
+        },
+        {
+          "paragraph_id": 7,
+          "bbox": null,
+          "text": "Vậy khi Đức Chúa Giêsu sinh ra đã được tám ngày thì người chịu phép cắt bì, và đặt tên là Giêsu, nghĩa là Cứu Thế. Các trẻ Dudêu khi chịu phép ấy thì được ích trọng phần linh hồn, nhưng mà phần xác đau đớn lắm ; Con một Đức Chúa Trời, lẽ thì chẳng phải chịu sự khó làm vậy, vì chưng Chúa cực thanh cực tịnh là",
+          "words": [
+            {
+              "bbox": null,
+              "text": "Vậy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêsu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sinh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ra",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đã",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tám",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ngày",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "người",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cắt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "bì,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "và",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đặt",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tên",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Giêsu,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nghĩa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Cứu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Thế.",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Các",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trẻ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Dudêu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khi",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phép",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ấy",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "được",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "ích",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "trọng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phần",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "linh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "hồn,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "nhưng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "mà",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phần",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "xác",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đau",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "đớn",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lắm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": ";",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Con",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "một",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Đức",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Trời,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "lẽ",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chẳng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "phải",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chịu",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "sự",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "khó",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "làm",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vậy,",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "vì",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "chưng",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "Chúa",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cực",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "thanh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "cực",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "tịnh",
+              "confidence": null
+            },
+            {
+              "bbox": null,
+              "text": "là",
+              "confidence": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
