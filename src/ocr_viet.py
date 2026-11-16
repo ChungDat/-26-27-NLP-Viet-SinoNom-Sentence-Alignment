@@ -1004,7 +1004,7 @@ def main() -> None:
     ocr_configs = ["--psm 3", "--psm 6"]
     source_directory = Path("Dong_hang/test")
     destination_directory = Path("Dong_hang/test")
-    image_file_name = Path("0150.png")
+    image_file_name = Path("0015.png")
     image_path = source_directory / image_file_name
 
     # 1. Run Tesseract OCR
@@ -1013,8 +1013,8 @@ def main() -> None:
     try:
         tess_page = tesseract_ocr.run(
             image_path,
-            pdf_page_number=150,
-            document_page_number=150,
+            pdf_page_number=15,
+            document_page_number=15,
             page_name=image_file_name,
             config=ocr_configs[0],
         )
@@ -1042,8 +1042,8 @@ def main() -> None:
     try:
         vlm_page = vlm_ocr.run(
             image_path,
-            pdf_page_number=150,
-            document_page_number=150,
+            pdf_page_number=15,
+            document_page_number=15,
             page_name=image_file_name,
         )
         vlm_ocr.save_text(destination_directory, image_file_name.stem + "_vlm.txt")

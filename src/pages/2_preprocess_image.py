@@ -69,14 +69,14 @@ def _bounding_box_filter_controls() -> tuple[int, int]:
     min_width = st.number_input(
         "Minimum box width (px)",
         min_value=0,
-        value=10,
+        value=50,
         step=1,
         key="bbox_min_width",
     )
     min_height = st.number_input(
         "Minimum box height (px)",
         min_value=0,
-        value=10,
+        value=50,
         step=1,
         key="bbox_min_height",
     )
@@ -248,7 +248,13 @@ def main() -> None:
     extracted_images = st.session_state.get("images", [])
     extracted_pages = st.session_state.get("pages", [])
     with st.sidebar:
-        st.divider()
+        language = st.radio(
+            "Document language",
+            ["vie", "sino-nom"],
+            horizontal=True,
+            key="document_language",
+        )
+
         source_options = ["Upload an image"] + [
             f"Extracted page {page}" for page in extracted_pages
         ]
@@ -681,14 +687,7 @@ def main() -> None:
                 st.session_state.annotated_image = None
                 st.session_state.annotated_for = None
                 st.session_state.annotated_config = None
-                st.session_state.open_ocr_after_apply = True
-                if hasattr(st, "switch_page"):
-                    try:
-                        st.switch_page("pages/3_ocr_image.py")
-                    except Exception:
-                        st.rerun()
-                else:
-                    st.rerun()
+                st.switch_page("pages/3_ocr_image.py")
 
 
 if __name__ == "__main__":

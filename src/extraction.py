@@ -56,28 +56,37 @@ class PDFDocument:
                     dtype=np.uint8,
                 ).reshape(pixmap.height, pixmap.width, pixmap.n)
 
-                orientation_data = pytesseract.image_to_osd(
-                    image,
-                    output_type=pytesseract.Output.DICT,
-                )
-
-                if orientation_data["orientation_conf"] < self.orientation_threshold:
-                    print(
-                        f"Page {page_number} has orientation confidence lower than "
-                        f"{self.orientation_threshold}"
+                try:
+                    orientation_data = pytesseract.image_to_osd(
+                        image,
+                        output_type=pytesseract.Output.DICT,
                     )
-                    continue
+                except pytesseract.TesseractError as error:
+                    # Tesseract fails OSD (e.g. "Too few characters") on sparse pages.
+                    # In that case, keep the original orientation and continue processing.
+                    print(
+                        f"Page {page_number}: OSD failed ({error}). Using original orientation."
+                    )
+                    orientation_data = None
 
-                if orientation_data["rotate"] == 0:
-                    pass
-                elif orientation_data["rotate"] == 90:
-                    image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-                elif orientation_data["rotate"] == 180:
-                    image = cv2.rotate(image, cv2.ROTATE_180)
-                elif orientation_data["rotate"] == 270:
-                    image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                else:
-                    print(f"Page {page_number} has unusual orientation")
+                if orientation_data is not None:
+                    if (
+                        orientation_data["orientation_conf"]
+                        < self.orientation_threshold
+                    ):
+                        print(
+                            f"Page {page_number} has orientation confidence lower than "
+                            f"{self.orientation_threshold}"
+                        )
+                        # Keep original unrotated image instead of dropping the page
+                    elif orientation_data["rotate"] == 90:
+                        image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+                    elif orientation_data["rotate"] == 180:
+                        image = cv2.rotate(image, cv2.ROTATE_180)
+                    elif orientation_data["rotate"] == 270:
+                        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    elif orientation_data["rotate"] != 0:
+                        print(f"Page {page_number} has unusual orientation")
 
                 yield image
 
@@ -145,7 +154,7 @@ def main() -> None:
     pdf_source = Path(
         "CV19-Phạm Phúc An Khang-20120303/T1_Sách Truyện Các Thánh (Tháng 1).pdf"
     )
-    pdf_pages = select_pages(150, 150, 1)
+    pdf_pages = select_pages(458, 458, 1)
     dpi = 300
     orientation_threshold = 3
     destination_path = Path("Dong_hang/test/")

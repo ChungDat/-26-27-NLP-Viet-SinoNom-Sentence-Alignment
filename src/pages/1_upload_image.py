@@ -67,6 +67,7 @@ def main() -> None:
         st.session_state.annotated_image = None
         st.session_state.annotated_for = None
         st.session_state.annotated_config = None
+        st.session_state.pdf_filename = uploaded_pdf.name
         st.success(f"Extracted {len(images)} image(s).")
 
 
