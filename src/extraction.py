@@ -145,7 +145,7 @@ def main() -> None:
     pdf_source = Path(
         "CV19-Phạm Phúc An Khang-20120303/T1_Sách Truyện Các Thánh (Tháng 1).pdf"
     )
-    pdf_pages = select_pages(100, 100, 1)
+    pdf_pages = select_pages(150, 150, 1)
     dpi = 300
     orientation_threshold = 3
     destination_path = Path("Dong_hang/test/")

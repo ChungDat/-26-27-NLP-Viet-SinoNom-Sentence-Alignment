@@ -324,7 +324,7 @@ class TesseractOCR:
         *,
         pdf_page_number: int,
         document_page_number: int,
-        page_name: str,
+        page_name: str | Path,
     ) -> OCRPage:
         """Convert raw Tesseract output into a structured :class:`OCRPage`.
 
@@ -397,7 +397,7 @@ class TesseractOCR:
         return OCRPage(
             pdf_page_number=pdf_page_number,
             document_page_number=document_page_number,
-            page_name=page_name,
+            page_name=str(page_name),
             method="tesseract",
             paragraphs=merged,
         )
@@ -573,7 +573,7 @@ class TesseractOCR:
 
     def annotate_image(
         self,
-        font_path: str = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        # font_path: str = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         font_size: int = 25,
         box_width: int = 3,
         high_conf_color: tuple[int, int, int] = (0, 191, 255),
@@ -602,6 +602,7 @@ class TesseractOCR:
         draw = ImageDraw.Draw(pil_image)
 
         try:
+            font_path = Path(__file__).parent.parent / "fonts" / "NotoSans-Regular.ttf"
             font = ImageFont.truetype(font_path, font_size)
         except OSError:
             font = ImageFont.load_default(font_size)
@@ -666,7 +667,7 @@ class TesseractOCR:
 
         Args:
             destination_path: Directory in which to write the annotated image. Created automatically if it does not exist.
-            save_name: Filename for the annotated image (e.g. ``"viz.jpg"``).
+            save_name: Filename for the annotated image.
             confidence_threshold: Optional threshold override.
 
         Raises:
@@ -815,7 +816,7 @@ class VLMOCR:
             image_source: Path to the image file, raw image bytes, NumPy array, or PIL Image.
             pdf_page_number: 1-indexed page number from the PDF reader.
             document_page_number: Actual document page number.
-            page_name: Human-readable page label (e.g. ``"0040.jpg"``).
+            page_name: Human-readable page label.
             options: Runtime Ollama option overrides for this specific call.
 
         Returns:
@@ -945,7 +946,7 @@ class VLMOCR:
         return OCRPage(
             pdf_page_number=pdf_page_number,
             document_page_number=document_page_number,
-            page_name=page_name,
+            page_name=str(page_name),
             method="vlm",
             paragraphs=paragraphs,
         )
@@ -1003,8 +1004,8 @@ def main() -> None:
     ocr_configs = ["--psm 3", "--psm 6"]
     source_directory = Path("Dong_hang/test")
     destination_directory = Path("Dong_hang/test")
-    image_file_name = "0040.jpg"
-    image_path = source_directory / "0" / image_file_name
+    image_file_name = Path("0150.png")
+    image_path = source_directory / image_file_name
 
     # 1. Run Tesseract OCR
     print("--- Running TesseractOCR ---")
@@ -1012,14 +1013,20 @@ def main() -> None:
     try:
         tess_page = tesseract_ocr.run(
             image_path,
-            pdf_page_number=100,
-            document_page_number=100,
+            pdf_page_number=150,
+            document_page_number=150,
             page_name=image_file_name,
             config=ocr_configs[0],
         )
-        tesseract_ocr.visualize(destination_directory, "hypo_tesseract.jpg")
-        tesseract_ocr.save_text(destination_directory, "hypo_tesseract.txt")
-        tesseract_ocr.save_json(destination_directory, "hypo_tesseract.json")
+        tesseract_ocr.visualize(
+            destination_directory, image_file_name.stem + "_tesseract.png"
+        )
+        tesseract_ocr.save_text(
+            destination_directory, image_file_name.stem + "_tesseract.txt"
+        )
+        tesseract_ocr.save_json(
+            destination_directory, image_file_name.stem + "_tesseract.json"
+        )
 
         tess_word_count = sum(len(p.words) for p in tess_page.paragraphs)
         print(
@@ -1029,31 +1036,31 @@ def main() -> None:
     except Exception as exc:
         print(f"[Tesseract] Failed: {exc}")
 
-    # # 2. Run VLM OCR
-    # print("\n--- Running VLMOCR ---")
-    # vlm_ocr = VLMOCR()
-    # try:
-    #     vlm_page = vlm_ocr.run(
-    #         image_path,
-    #         pdf_page_number=40,
-    #         document_page_number=40,
-    #         page_name=image_file_name,
-    #     )
-    #     vlm_ocr.save_text(destination_directory, "hypo_vlm.txt")
-    #     vlm_ocr.save_json(destination_directory, "hypo_vlm.json")
+    # 2. Run VLM OCR
+    print("\n--- Running VLMOCR ---")
+    vlm_ocr = VLMOCR()
+    try:
+        vlm_page = vlm_ocr.run(
+            image_path,
+            pdf_page_number=150,
+            document_page_number=150,
+            page_name=image_file_name,
+        )
+        vlm_ocr.save_text(destination_directory, image_file_name.stem + "_vlm.txt")
+        vlm_ocr.save_json(destination_directory, image_file_name.stem + "_vlm.json")
 
-    #     vlm_word_count = sum(len(p.words) for p in vlm_page.paragraphs)
-    #     print(
-    #         f"[VLM] Extracted {vlm_word_count} word(s) "
-    #         f"across {len(vlm_page.paragraphs)} paragraph(s)."
-    #     )
-    #     if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
-    #         print(
-    #             f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
-    #             f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
-    #         )
-    # except Exception as exc:
-    #     print(f"[VLM] Failed: {exc}")
+        vlm_word_count = sum(len(p.words) for p in vlm_page.paragraphs)
+        print(
+            f"[VLM] Extracted {vlm_word_count} word(s) "
+            f"across {len(vlm_page.paragraphs)} paragraph(s)."
+        )
+        if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
+            print(
+                f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
+                f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
+            )
+    except Exception as exc:
+        print(f"[VLM] Failed: {exc}")
 
 
 if __name__ == "__main__":

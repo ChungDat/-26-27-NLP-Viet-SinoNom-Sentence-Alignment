@@ -1,5 +1,5 @@
 import os
-from src.ocr_viet import get_ocr_data, get_ocr_text, save_text, visualize, normalize_text
+from src.ocr_viet import TesseractOCR, normalize_text
 from src.metric import CER, WER
 
 def run_config(configs, source_path, image_name):
@@ -10,12 +10,13 @@ def run_config(configs, source_path, image_name):
         image_path = os.path.join(mode_path, image_name)
 
         for config in configs:
-            data = get_ocr_data(image_path, config)
-            text = get_ocr_text(image_path, config)
+            ocr = TesseractOCR(lang="vie")
+            page = ocr.run(image_path, config=config)
+            text = ocr.text
             text = normalize_text(text)
-            visualize(image_path, data, mode_path, f"ocr_visualization {config}.jpg")
+            ocr.visualize(mode_path, f"ocr_visualization {config}.jpg")
             text_name = f"{image_name}_text {config}.txt"
-            save_text(text, mode_path, text_name)
+            ocr.save_text(mode_path, text_name)
             text_files.append(text_name)
 
     return text_files
