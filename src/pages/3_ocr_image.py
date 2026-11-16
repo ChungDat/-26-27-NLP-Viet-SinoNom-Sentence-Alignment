@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import re
 from itertools import zip_longest
@@ -90,16 +91,15 @@ def _align_paragraph_words(
     editor_words: list[str],
     vlm_words: list[str],
     max_lookahead: int = 5,
-) -> list[dict]:
+) -> tuple[list[dict], set[int]]:
     """Realign word sequences using 2-pointer with bounded lookahead to prevent cascading warnings.
 
-    Returns a list of discrepancy dicts with keys:
-        'type': 'mismatch',
-        'editor_segment': str,
-        'vlm_segment': str,
-        'msg': str
+    Returns:
+        (discrepancies, editor_mismatch_indices)
+        where editor_mismatch_indices is the set of word indices in editor_words that have discrepancies.
     """
     discrepancies: list[dict] = []
+    editor_mismatch_indices: set[int] = set()
     i = 0
     j = 0
     m = len(editor_words)
@@ -139,6 +139,9 @@ def _align_paragraph_words(
             else:
                 msg = f'Current: "{seg_a}" | VLM: "{seg_b}"'
 
+            for idx in range(i, i + di):
+                editor_mismatch_indices.add(idx)
+
             discrepancies.append(
                 {
                     "type": "mismatch",
@@ -153,6 +156,7 @@ def _align_paragraph_words(
             # Fallback: advance both pointers by 1
             seg_a = editor_words[i]
             seg_b = vlm_words[j]
+            editor_mismatch_indices.add(i)
             discrepancies.append(
                 {
                     "type": "mismatch",
@@ -166,6 +170,8 @@ def _align_paragraph_words(
 
     # Trailing words in editor
     if i < m:
+        for idx in range(i, m):
+            editor_mismatch_indices.add(idx)
         seg_a = " ".join(editor_words[i:])
         discrepancies.append(
             {
@@ -187,16 +193,17 @@ def _align_paragraph_words(
             }
         )
 
-    return discrepancies
+    return discrepancies, editor_mismatch_indices
 
 
 def _compute_warnings(
     vlm_source: OCRPage | str | None,
     editor_text: str,
     max_lookahead: int = 5,
-) -> list[dict]:
-    """Return a list of warning dicts for the warning panel."""
+) -> tuple[list[dict], dict[int, set[int]]]:
+    """Return a tuple of (warnings, mismatch_indices_by_para)."""
     warnings: list[dict] = []
+    mismatch_indices_by_para: dict[int, set[int]] = {}
 
     editor_paras = _split_paragraphs(editor_text)
 
@@ -233,15 +240,20 @@ def _compute_warnings(
                     "msg": f'Extra paragraph in editor (not in VLM): "{ep_text[:60]}…"',
                 }
             )
+            # All words in extra editor paragraph are flagged
+            mismatch_indices_by_para[i] = set(range(len(ep_text.split())))
             continue
 
         if ep_text is not None and vp_text is not None:
             editor_words = ep_text.split()
             vlm_words = vp_text.split()
 
-            align_discrepancies = _align_paragraph_words(
+            align_discrepancies, para_mismatch_indices = _align_paragraph_words(
                 editor_words, vlm_words, max_lookahead=max_lookahead
             )
+            if para_mismatch_indices:
+                mismatch_indices_by_para[i] = para_mismatch_indices
+
             for d in align_discrepancies:
                 warnings.append(
                     {
@@ -252,7 +264,40 @@ def _compute_warnings(
                     }
                 )
 
-    return warnings
+    return warnings, mismatch_indices_by_para
+
+
+def _render_highlighted_text(
+    editor_text: str,
+    mismatch_indices_by_para: dict[int, set[int]],
+) -> str:
+    """Build an HTML preview with warning words colored in pure red."""
+    if not editor_text.strip():
+        return "<p style='color: #888; font-style: italic; margin: 0;'>No text to preview.</p>"
+
+    editor_paras = _split_paragraphs(editor_text)
+    html_paragraphs: list[str] = []
+
+    for i, para in enumerate(editor_paras):
+        words = para.split()
+        flagged_indices = mismatch_indices_by_para.get(i, set())
+        formatted_words: list[str] = []
+
+        for w_idx, w in enumerate(words):
+            escaped_word = html.escape(w)
+            if w_idx in flagged_indices:
+                formatted_words.append(
+                    f"<span style='color: red; font-weight: bold;'>{escaped_word}</span>"
+                )
+            else:
+                formatted_words.append(escaped_word)
+
+        para_html = " ".join(formatted_words)
+        html_paragraphs.append(
+            f"<p style='margin: 0 0 10px 0; line-height: 1.5;'>{para_html}</p>"
+        )
+
+    return "".join(html_paragraphs)
 
 
 # staging file helpers
@@ -545,7 +590,7 @@ def main() -> None:
     # Live computation of warnings against current editor text & current VLM reference text
     current_text = st.session_state.get(editor_key, "")
     current_vlm_text = st.session_state.get(vlm_key, "")
-    warnings = _compute_warnings(
+    warnings, mismatch_indices_by_para = _compute_warnings(
         current_vlm_text,
         current_text,
     )
@@ -605,7 +650,15 @@ def main() -> None:
         else:
             st.success("✅ No mismatches detected.")
 
+        highlighted_html = _render_highlighted_text(
+            current_text, mismatch_indices_by_para
+        )
+        with st.container(height=200, border=True):
+            st.markdown(highlighted_html, unsafe_allow_html=True)
+
     with col_text:
+        st.badge("Separate paragraphs with a blank line.")
+
         st.subheader("VLM Reference Text")
         st.text_area(
             "VLM Reference Text",
@@ -619,10 +672,7 @@ def main() -> None:
                 st.session_state[vlm_key] = vlm_raw_baseline
                 st.rerun()
 
-        st.divider()
-
         st.subheader("Final text")
-        st.caption("Separate paragraphs with a blank line.")
 
         st.text_area(
             "Reviewed text",
