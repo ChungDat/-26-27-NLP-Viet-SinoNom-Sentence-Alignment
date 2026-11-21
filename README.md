@@ -2,14 +2,14 @@
 
 Đồ án xây dựng **bộ dữ liệu song song Hán Nôm – Quốc ngữ** từ sách scan, theo tài liệu *Hướng dẫn xây dựng dữ liệu song song Hán Nôm và Quốc ngữ* (phiên bản v2.3, 13/11/2026).
 
-> Các mục đánh dấu `TODO` là thông tin nhóm cần điền hoặc xác nhận.
+ 
 
 ## 1. Thông tin đề tài
 
 | Mục | Nội dung |
 |---|---|
-| Tên sách (đúng như file PDF được giao) | `TODO` |
-| Mã đề tài / phạm vi được giao | `TODO` (toàn bộ sách hay theo phần, chương) |
+| Tên sách (đúng như file PDF được giao) | Sách Truyện Các Thánh |
+| Mã đề tài / phạm vi được giao |  toàn bộ chương được giao (Tháng 1, Tháng 2, Tháng 3) |
 | Loại sách | **T1**: Quốc ngữ ở đầu file, Nôm ở cuối file |
 | Nôm in hay viết tay | `TODO` (T1 hay T1w) |
 | Dạng nguồn | Scan cả hai bản (ảnh Nôm và ảnh Quốc ngữ) |
