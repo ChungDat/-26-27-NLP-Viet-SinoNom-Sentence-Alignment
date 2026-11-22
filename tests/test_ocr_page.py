@@ -32,6 +32,7 @@ from unittest.mock import MagicMock
 #           page module.
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_module(name: str, **attrs) -> MagicMock:
     mock = MagicMock()
     mock.__name__ = name
@@ -117,6 +118,7 @@ if _src_pkg_name not in sys.modules:
 
 # Also register src.ocr_viet so the relative import resolves.
 import src.ocr_viet as _ocr_viet_mod  # noqa: E402
+
 sys.modules.setdefault("src.ocr_viet", _ocr_viet_mod)
 
 # Now import the page module. Its name starts with a digit so we use importlib.
@@ -155,6 +157,7 @@ _LEVENSHTEIN_AVAILABLE = True
 import inspect as _inspect
 
 _ALIGN_RETURNS_3 = False  # will be detected at runtime in the first call
+
 
 def _call_align(editor_words, vlm_words, **kw):
     """Call _align_paragraph_words and always return a 3-tuple.
@@ -271,7 +274,7 @@ class TestBuildOcrPage(unittest.TestCase):
     def test_page_name_derived_from_pdf_page_number(self):
         """page_name is formatted using the PDF page number."""
         page = _build_ocr_page("Text", pdf_page_number=3, document_page_number=3)
-        self.assertIn(page.page_name, ("page_0003", "003"))
+        self.assertEqual(page.page_name, "003")
 
     def test_method_is_reviewed(self):
         """The page's method field should be 'reviewed'."""
@@ -411,7 +414,11 @@ class TestComputeWarnings(unittest.TestCase):
         vlm_text = "Para one\n\nPara two extra"
         editor_text = "Para one"
         warnings, mismatch = _call_compute_warnings(vlm_text, editor_text)
-        orphan_warnings = [w for w in warnings if w.get("type") == "orphan" and w.get("source") == "vlm"]
+        orphan_warnings = [
+            w
+            for w in warnings
+            if w.get("type") == "orphan" and w.get("source") == "vlm"
+        ]
         self.assertTrue(len(orphan_warnings) > 0, "Expected orphan VLM warning")
 
     def test_orphan_editor_paragraph(self):
@@ -419,7 +426,11 @@ class TestComputeWarnings(unittest.TestCase):
         vlm_text = "Para one"
         editor_text = "Para one\n\nExtra editor para"
         warnings, mismatch = _call_compute_warnings(vlm_text, editor_text)
-        orphan_warnings = [w for w in warnings if w.get("type") == "orphan" and w.get("source") == "editor"]
+        orphan_warnings = [
+            w
+            for w in warnings
+            if w.get("type") == "orphan" and w.get("source") == "editor"
+        ]
         self.assertTrue(len(orphan_warnings) > 0, "Expected orphan editor warning")
         # All words in the extra para should be in mismatch
         self.assertIn(1, mismatch)
@@ -494,9 +505,15 @@ class TestRenderHighlightedText(unittest.TestCase):
     """Tests for _render_highlighted_text(...) -> str (HTML)."""
 
     # Helper: call with current 2-arg or future 5-arg signature
-    def _render(self, editor_text, mismatch_by_para=None,
-                hard_mismatch=None, soft_mismatch=None,
-                missing_words=None, missing_paras=None):
+    def _render(
+        self,
+        editor_text,
+        mismatch_by_para=None,
+        hard_mismatch=None,
+        soft_mismatch=None,
+        missing_words=None,
+        missing_paras=None,
+    ):
         mismatch_by_para = mismatch_by_para or {}
         if _RENDER_EXTENDED:
             return _render_highlighted_text(
@@ -519,12 +536,15 @@ class TestRenderHighlightedText(unittest.TestCase):
         """Words in hard mismatch indices are wrapped in a red <span>."""
         # Word at index 1 ('world') is flagged
         mismatch = {0: {1}}
-        html = self._render("Hello world", mismatch_by_para=mismatch,
-                             hard_mismatch=mismatch)
+        html = self._render(
+            "Hello world", mismatch_by_para=mismatch, hard_mismatch=mismatch
+        )
         self.assertIn("world", html)
         self.assertIn("color: red", html)
 
-    @unittest.skipUnless(_RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form")
+    @unittest.skipUnless(
+        _RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form"
+    )
     def test_soft_mismatch_orange_span(self):
         """Words in soft mismatch indices are wrapped in an orange <span>."""
         soft = {0: {0}}  # 'Hello' is a soft mismatch
@@ -532,18 +552,23 @@ class TestRenderHighlightedText(unittest.TestCase):
         self.assertIn("orange", html)
         self.assertIn("Hello", html)
 
-    @unittest.skipUnless(_RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form")
+    @unittest.skipUnless(
+        _RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form"
+    )
     def test_missing_insertion_span(self):
         """Missing words (from VLM) are rendered with a distinct highlight."""
         missing = {0: {0: ["MISSING_WORD"]}}
         html = self._render("Hello world", missing_words=missing)
         self.assertIn("MISSING_WORD", html)
 
-    @unittest.skipUnless(_RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form")
+    @unittest.skipUnless(
+        _RENDER_EXTENDED, "_render_highlighted_text not yet refactored to 5-arg form"
+    )
     def test_missing_paragraph_background(self):
         """Orphan VLM paragraphs render with a background highlight."""
-        html = self._render("Hello world\n\nPara two",
-                            missing_paras={1: "Para two missing"})
+        html = self._render(
+            "Hello world\n\nPara two", missing_paras={1: "Para two missing"}
+        )
         self.assertIn("Para two", html)
 
     def test_empty_text_placeholder(self):
@@ -647,6 +672,7 @@ class TestStagingHelpers(unittest.TestCase):
 
     def test_sync_multiple_pages(self):
         """Multiple pages are all written and loaded back correctly."""
+
         def _make_page(n):
             return OCRPage(
                 pdf_page_number=n,
