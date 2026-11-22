@@ -68,6 +68,17 @@ def main() -> None:
         st.session_state.annotated_for = None
         st.session_state.annotated_config = None
         st.session_state.pdf_filename = uploaded_pdf.name
+
+        # Reset all OCR page session state when a new document is extracted
+        for key in list(st.session_state.keys()):
+            if key.startswith("ocr_") or key in {
+                "page_adjustment",
+                "save_alert",
+                "show_inline_overwrite_warning",
+                "overwrite_approved",
+            }:
+                del st.session_state[key]
+
         st.success(f"Extracted {len(images)} image(s).")
 
 

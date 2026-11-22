@@ -15,11 +15,11 @@ try:
     )
     from ..preprocess import PreprocessPipeline
 except ImportError:
-    from ocr_viet import (
+    from ocr_viet import (  # type: ignore[no-redef]
         VLMOCR,
         TesseractOCR,
     )
-    from preprocess import PreprocessPipeline
+    from preprocess import PreprocessPipeline  # type: ignore[no-redef]
 
 LOW_CONFIDENCE_THRESHOLD = 85.0
 PSM_NOTES = {
@@ -243,18 +243,21 @@ def _render_step_controls(pipeline: PreprocessPipeline, index: int) -> bool:
 
 
 def main() -> None:
+    """Main entry point for the Preprocess Images page (page 2)."""
     st.header("2. Preprocess images")
+
+    # Language selector at top of main page (not sidebar)
+    language = st.radio(
+        "Document language",
+        ["vie", "sino-nom"],
+        horizontal=True,
+        key="document_language",
+    )
 
     extracted_images = st.session_state.get("images", [])
     extracted_pages = st.session_state.get("pages", [])
-    with st.sidebar:
-        language = st.radio(
-            "Document language",
-            ["vie", "sino-nom"],
-            horizontal=True,
-            key="document_language",
-        )
 
+    with st.sidebar:
         source_options = ["Upload an image"] + [
             f"Extracted page {page}" for page in extracted_pages
         ]
@@ -675,19 +678,34 @@ def main() -> None:
         disabled=apply_disabled,
         help="Extract images from the first page before using this action.",
     ):
-        with st.spinner("Applying preprocessing to extracted images…"):
-            try:
-                processed_images = [pipeline.apply(image) for image in extracted_images]
-            except (TypeError, ValueError, cv2.error) as error:
-                st.error(f"Could not process all extracted images: {error}")
-            else:
-                st.session_state.ocr_images = processed_images
-                st.session_state.ocr_pages = list(extracted_pages)
-                st.session_state.selected_image = 0
-                st.session_state.annotated_image = None
-                st.session_state.annotated_for = None
-                st.session_state.annotated_config = None
-                st.switch_page("pages/3_ocr_image.py")
+        # Store pipeline steps in session state (OCR page reads them on demand)
+        st.session_state.preprocess_steps = pipeline.to_dict()
+
+        # Clear all OCR session state so page 3 starts fresh with new pipeline
+        for key in [
+            "ocr_current_index",
+            "ocr_page_cache",
+            "ocr_images_signature",
+            "ocr_confirmed_flags",
+            "ocr_confirmed_pages",
+            "page_adjustment",
+            "save_alert",
+            "show_inline_overwrite_warning",
+            "overwrite_approved",
+            "ocr_preprocess_signature",
+            "ocr_images",
+            "ocr_pages",
+        ]:
+            st.session_state.pop(key, None)
+        for key in list(st.session_state.keys()):
+            if key.startswith(("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")):
+                del st.session_state[key]
+
+        # Route to the appropriate OCR page based on language
+        if language == "vie":
+            st.switch_page("pages/3_ocr_image.py")
+        else:
+            st.switch_page("pages/3_ocr_sino_nom.py")
 
 
 if __name__ == "__main__":

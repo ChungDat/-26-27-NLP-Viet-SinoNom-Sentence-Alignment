@@ -145,6 +145,10 @@ class TestOCRViet(unittest.TestCase):
             ["gần cũng-gần", "xa"],
         )
 
+    @unittest.skipUnless(
+        (Path(__file__).resolve().parents[1] / "Dong_hang" / "test" / "hypo_tesseract.json").exists(),
+        "Dong_hang fixtures not present",
+    )
     def test_sample_tesseract_text_matches_corrected_output(self):
         fixture_dir = Path(__file__).resolve().parents[1] / "Dong_hang" / "test"
         page = OCRPage.model_validate_json(
