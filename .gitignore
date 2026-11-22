@@ -20,11 +20,6 @@ wheels/
 .codex
 .vscode
 
-*.ttf
-*.TTF
-*.otf
-*.ttc
-
 *.xlsx
 
 dictionaries-04-11-2026/
