@@ -9,9 +9,9 @@ def main() -> None:
     st.title("PDF OCR workspace")
 
     pages = [
-        st.Page("pages/1_upload_image.py", title="Extract images"),
+        st.Page("pages/1_upload_document.py", title="Extract images"),
         st.Page("pages/2_preprocess_image.py", title="Preprocess"),
-        st.Page("pages/3_ocr_image.py", title="Run OCR"),
+        st.Page("pages/3_ocr_viet.py", title="Run Viet OCR"),
         st.Page("pages/4_postprocess_image.py", title="Postprocess"),
     ]
     st.navigation(pages).run()

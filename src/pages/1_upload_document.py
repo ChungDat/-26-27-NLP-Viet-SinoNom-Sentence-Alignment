@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 try:
@@ -67,7 +69,7 @@ def main() -> None:
         st.session_state.annotated_image = None
         st.session_state.annotated_for = None
         st.session_state.annotated_config = None
-        st.session_state.pdf_filename = uploaded_pdf.name
+        st.session_state.pdf_filename = Path(uploaded_pdf.name).stem
 
         # Reset all OCR page session state when a new document is extracted
         for key in list(st.session_state.keys()):

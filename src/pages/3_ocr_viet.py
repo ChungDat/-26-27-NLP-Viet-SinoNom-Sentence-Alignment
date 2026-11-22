@@ -141,7 +141,7 @@ def _build_ocr_page(
     return OCRPage(
         pdf_page_number=pdf_page_number,
         document_page_number=document_page_number,
-        page_name=f"page_{pdf_page_number:04d}",
+        page_name=f"{pdf_page_number:03d}",
         method="reviewed",
         paragraphs=paragraphs,
     )
@@ -167,7 +167,9 @@ def _clear_ocr_session_state() -> None:
     for key in _OCR_CACHE_KEYS:
         st.session_state.pop(key, None)
     for key in list(st.session_state.keys()):
-        if key.startswith(("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")):
+        if key.startswith(
+            ("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")
+        ):
             del st.session_state[key]
     with _PREFETCH_LOCK:
         _PREFETCH_CACHE.clear()
@@ -288,7 +290,10 @@ def _align_paragraph_words(
                 dj = total_dist - di
                 if dj <= max_lookahead and (i + di) < m and (j + dj) < n:
                     # Use fuzzy ratio as the matching condition for anchors
-                    if _fuzzy_ratio(editor_words[i + di], vlm_words[j + dj]) >= FUZZY_MATCH_THRESHOLD:
+                    if (
+                        _fuzzy_ratio(editor_words[i + di], vlm_words[j + dj])
+                        >= FUZZY_MATCH_THRESHOLD
+                    ):
                         best_anchor = (di, dj)
                         break
             if best_anchor is not None:
@@ -447,8 +452,10 @@ def _compute_warnings(
             editor_words = ep_text.split()
             vlm_words = vp_text.split()
 
-            align_discrepancies, para_hard_indices, para_soft_indices = _align_paragraph_words(
-                editor_words, vlm_words, max_lookahead=max_lookahead
+            align_discrepancies, para_hard_indices, para_soft_indices = (
+                _align_paragraph_words(
+                    editor_words, vlm_words, max_lookahead=max_lookahead
+                )
             )
             if para_hard_indices:
                 hard_mismatch_indices_by_para[i] = para_hard_indices
@@ -484,7 +491,10 @@ def _compute_warnings(
                     for di in range(min(total_dist, max_lookahead) + 1):
                         dj = total_dist - di
                         if dj <= max_lookahead and (w_i + di) < em and (w_j + dj) < vn:
-                            if _fuzzy_ratio(ew[w_i + di], vw[w_j + dj]) >= FUZZY_MATCH_THRESHOLD:
+                            if (
+                                _fuzzy_ratio(ew[w_i + di], vw[w_j + dj])
+                                >= FUZZY_MATCH_THRESHOLD
+                            ):
                                 anchor = (di, dj)
                                 break
                     if anchor is not None:
@@ -833,17 +843,21 @@ def _process_and_ocr_for_index(
     """
     pdf_page = pages[index]
     doc_page = pdf_page + page_adjustment
-    page_name = f"page_{pdf_page:04d}"
+    page_name = f"{pdf_page:03d}"
 
     # Parallel execution: run (Preprocessing + Tesseract) and (VLM OCR) concurrently
-    def _prep_and_tess() -> tuple[np.ndarray, OCRPage | None, Image.Image | None, str | None]:
+    def _prep_and_tess() -> tuple[
+        np.ndarray, OCRPage | None, Image.Image | None, str | None
+    ]:
         try:
             prep = PreprocessPipeline(pipeline_steps).apply(raw_images[index])
         except Exception:
             prep = raw_images[index]
 
         try:
-            tess = TesseractOCR(lang="vie", confidence_threshold=LOW_CONFIDENCE_THRESHOLD)
+            tess = TesseractOCR(
+                lang="vie", confidence_threshold=LOW_CONFIDENCE_THRESHOLD
+            )
             res = tess.run(
                 prep,
                 pdf_page_number=pdf_page,
@@ -875,7 +889,9 @@ def _process_and_ocr_for_index(
         tess_future = executor.submit(_prep_and_tess)
         vlm_future = executor.submit(_run_vlm)
 
-        preprocessed_image, tess_result, tess_annotated, tess_error = tess_future.result()
+        preprocessed_image, tess_result, tess_annotated, tess_error = (
+            tess_future.result()
+        )
         vlm_result, vlm_error = vlm_future.result()
 
     # Seed editor with Tesseract baseline (or VLM fallback, then empty)
@@ -909,9 +925,8 @@ if hasattr(st, "fragment"):
         """Render live auto-updating prefetch indicator."""
         with _PREFETCH_LOCK:
             is_running = next_idx in _PREFETCH_IN_PROGRESS
-            is_ready = (
-                next_idx in _PREFETCH_CACHE
-                or next_idx in st.session_state.get("ocr_page_cache", {})
+            is_ready = next_idx in _PREFETCH_CACHE or next_idx in st.session_state.get(
+                "ocr_page_cache", {}
             )
         if is_running:
             st.caption(
@@ -928,9 +943,8 @@ else:
         """Render static prefetch indicator (fallback for older Streamlit)."""
         with _PREFETCH_LOCK:
             is_running = next_idx in _PREFETCH_IN_PROGRESS
-            is_ready = (
-                next_idx in _PREFETCH_CACHE
-                or next_idx in st.session_state.get("ocr_page_cache", {})
+            is_ready = next_idx in _PREFETCH_CACHE or next_idx in st.session_state.get(
+                "ocr_page_cache", {}
             )
         if is_running:
             st.caption(
@@ -1015,6 +1029,14 @@ def main() -> None:
                 key="ocr_source_name",
             )
 
+        is_modified = st.session_state.get("preprocess_modified", bool(preprocess_steps))
+        if is_modified:
+            st.caption(
+                f"ℹ️ Preprocessing pipeline: **Active ({len(preprocess_steps)} step{'s' if len(preprocess_steps) != 1 else ''})**"
+            )
+        else:
+            st.caption("ℹ️ Preprocessing pipeline: **None (using raw images)**")
+
     # -----------------------------------------------------------------------
     # Image lists
     # -----------------------------------------------------------------------
@@ -1088,8 +1110,10 @@ def main() -> None:
             use_container_width=True,
             help="Save confirmed pages to OCRDocument JSON immediately.",
         ):
-            source_name = st.session_state.get("ocr_source_name", st.session_state.get("pdf_filename", "document.pdf"))
-            language = st.session_state.get("document_language", "vie")
+            source_name = st.session_state.get(
+                "ocr_source_name", st.session_state.get("pdf_filename", "document.pdf")
+            )
+            language = st.session_state.get("document_language", "vi")
             _handle_save_request(
                 output_path=output_path,
                 source_name=source_name,
@@ -1115,8 +1139,11 @@ def main() -> None:
             if st.button("⚠️ Confirm Overwrite File", type="primary"):
                 st.session_state["show_inline_overwrite_warning"] = False
                 st.session_state["overwrite_approved"] = True
-                source_name = st.session_state.get("ocr_source_name", st.session_state.get("pdf_filename", "document.pdf"))
-                language = st.session_state.get("document_language", "vie")
+                source_name = st.session_state.get(
+                    "ocr_source_name",
+                    st.session_state.get("pdf_filename", "document.pdf"),
+                )
+                language = st.session_state.get("document_language", "vi")
                 _handle_save_request(
                     output_path=output_path,
                     source_name=source_name,
@@ -1169,7 +1196,9 @@ def main() -> None:
                 with _PREFETCH_LOCK:
                     if index not in _PREFETCH_IN_PROGRESS:
                         if index in _PREFETCH_CACHE:
-                            st.session_state.ocr_page_cache[index] = _PREFETCH_CACHE.pop(index)
+                            st.session_state.ocr_page_cache[index] = (
+                                _PREFETCH_CACHE.pop(index)
+                            )
                         break
                 time.sleep(0.1)
 
@@ -1231,6 +1260,7 @@ def main() -> None:
                 _PREFETCH_IN_PROGRESS.add(next_index)
 
         if should_prefetch:
+
             def _bg_task(
                 idx=next_index,
                 imgs=images,
@@ -1298,9 +1328,15 @@ def main() -> None:
         col_mode, col_rerun = st.columns([1, 2])
 
         with col_mode:
+            display_options = ["Annotated", "Original image"]
+            if is_modified:
+                display_options.insert(1, "Preprocessed image")
+            saved_mode = st.session_state.get(f"image_view_mode_{index}", "Annotated")
+            mode_idx = display_options.index(saved_mode) if saved_mode in display_options else 0
             view_mode = st.radio(
                 "Image display mode",
-                ["Annotated", "Original image"],
+                display_options,
+                index=mode_idx,
                 horizontal=True,
                 key=f"image_view_mode_{index}",
             )
@@ -1324,6 +1360,15 @@ def main() -> None:
                 st.image(tess_annotated, width="stretch")
             elif preprocessed_image is not None:
                 st.image(_image_to_pil(preprocessed_image), width="stretch")
+            else:
+                st.image(_image_to_pil(images[index]), width="stretch")
+        elif view_mode == "Preprocessed image":
+            if preprocessed_image is not None:
+                st.image(
+                    _image_to_pil(preprocessed_image),
+                    caption="Preprocessed image (Tesseract input)",
+                    width="stretch",
+                )
             else:
                 st.image(_image_to_pil(images[index]), width="stretch")
         else:
@@ -1410,9 +1455,10 @@ def main() -> None:
                 prep_img = result.get("preprocessed_image")
                 if prep_img is not None:
                     try:
-                        prep_dir = Path(output_path).parent / "preprocessed"
+                        language = st.session_state.get("document_language", "vi")
+                        prep_dir = Path(output_path).parent / language
                         prep_dir.mkdir(parents=True, exist_ok=True)
-                        img_path = prep_dir / f"page_{pdf_page:04d}.png"
+                        img_path = prep_dir / f"{source_name}.{pdf_page:03d}.jpg"
                         _image_to_pil(prep_img).save(img_path)
                     except Exception as img_err:
                         st.warning(f"Could not save preprocessed image: {img_err}")
@@ -1447,7 +1493,9 @@ def main() -> None:
 
     if all_confirmed:
         st.subheader("Finalize - Write OCRDocument")
-        st.success(f"All {total} image(s) confirmed. Ready to write the final document.")
+        st.success(
+            f"All {total} image(s) confirmed. Ready to write the final document."
+        )
     else:
         st.subheader(f"Save Progress ({n_confirmed}/{total} images confirmed)")
         st.info(
@@ -1455,21 +1503,13 @@ def main() -> None:
             "You can write an intermediate OCRDocument JSON anytime."
         )
 
-    fin_col1, fin_col2 = st.columns(2)
-    with fin_col1:
-        source_name = st.text_input(
-            "Source (PDF filename)",
-            value=st.session_state.get("ocr_source_name", st.session_state.get("pdf_filename", "")),
-            key="ocr_finalize_source_name",
-        )
-    with fin_col2:
-        language = st.radio(
-            "Document language",
-            ["vie", "sino-nom"],
-            index=0 if st.session_state.get("document_language", "vie") == "vie" else 1,
-            horizontal=True,
-            key="ocr_final_language",
-        )
+    source_name = st.text_input(
+        "Source (PDF filename)",
+        value=st.session_state.get(
+            "ocr_source_name", st.session_state.get("pdf_filename", "")
+        ),
+        key="ocr_finalize_source_name",
+    )
 
     save_btn_label = (
         "Write OCRDocument JSON"
