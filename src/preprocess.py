@@ -8,6 +8,7 @@ BGR channels.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -58,6 +59,22 @@ def _to_grayscale(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
 
+def _otsu_threshold(grayscale: np.ndarray) -> np.ndarray:
+    """Apply Otsu thresholding to a grayscale uint8 image."""
+    _, binary = cv2.threshold(
+        grayscale,
+        0,
+        255,
+        cv2.THRESH_BINARY | cv2.THRESH_OTSU,
+    )
+    return binary
+
+
+# ---------------------------------------------------------------------------
+# Standalone image transformation functions
+# ---------------------------------------------------------------------------
+
+
 def convert_color(image: np.ndarray, mode: int = COLOR_RGB) -> np.ndarray:
     """Convert an image to RGB, grayscale, or Otsu-binarized output.
 
@@ -70,7 +87,6 @@ def convert_color(image: np.ndarray, mode: int = COLOR_RGB) -> np.ndarray:
         A new uint8 image in the requested mode. RGB is the canonical color
         channel order; mode 0 does not perform an RGB/BGR swap.
     """
-
     if mode not in (COLOR_RGB, COLOR_GRAYSCALE, COLOR_BINARY):
         raise ValueError("mode must be 0 (RGB), 1 (grayscale), or 2 (binary)")
 
@@ -80,13 +96,7 @@ def convert_color(image: np.ndarray, mode: int = COLOR_RGB) -> np.ndarray:
     if mode == COLOR_GRAYSCALE:
         return grayscale
     if mode == COLOR_BINARY:
-        _, binary = cv2.threshold(
-            grayscale,
-            0,
-            255,
-            cv2.THRESH_BINARY | cv2.THRESH_OTSU,
-        )
-        return binary
+        return _otsu_threshold(grayscale)
 
     if image.ndim == 2:
         return cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
@@ -97,8 +107,17 @@ def convert_color(image: np.ndarray, mode: int = COLOR_RGB) -> np.ndarray:
 
 def reverse_color(image: np.ndarray) -> np.ndarray:
     """Invert every image channel, exchanging black and white values."""
-
     return cv2.bitwise_not(_as_uint8(image))
+
+
+def remove_artifact(image: np.ndarray, kernel_size: int = 3) -> np.ndarray:
+    """Remove small salt-and-pepper artifacts with a median filter."""
+    if not isinstance(kernel_size, (int, np.integer)) or kernel_size < 3:
+        raise ValueError("kernel_size must be an integer greater than or equal to 3")
+    if kernel_size % 2 == 0:
+        raise ValueError("kernel_size must be odd")
+    image = _as_uint8(image)
+    return cv2.medianBlur(image, int(kernel_size))
 
 
 def _validate_morphology_parameters(
@@ -198,17 +217,12 @@ def binary_morphology(
     Non-binary inputs are converted with Otsu thresholding using white as the
     foreground. The output always contains only 0 and 255 values.
     """
-
     grayscale = _to_grayscale(image)
     if np.all(np.isin(np.unique(grayscale), (0, 255))):
         binary = grayscale
     else:
-        _, binary = cv2.threshold(
-            grayscale,
-            0,
-            255,
-            cv2.THRESH_BINARY | cv2.THRESH_OTSU,
-        )
+        binary = _otsu_threshold(grayscale)
+
     result = _morphology(
         binary,
         operation,
@@ -230,7 +244,6 @@ def grayscale_morphology(
     kernel_orientation: str = "square",
 ) -> np.ndarray:
     """Apply grayscale morphology, including white/black top-hat filters."""
-
     grayscale = _to_grayscale(image)
     return _morphology(
         grayscale,
@@ -243,74 +256,375 @@ def grayscale_morphology(
     )
 
 
-def remove_artifact(image: np.ndarray, kernel_size: int = 3) -> np.ndarray:
+# ---------------------------------------------------------------------------
+# Transformation parameter schema and plugin classes
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ParamSpec:
+    """Descriptor for a configurable transformation parameter."""
+
+    name: str
+    label: str
+    type: str  # "select", "slider", "number"
+    default: Any
+    options: list[Any] | None = None
+    option_labels: dict[Any, str] | None = None
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    step: int | float | None = None
+    help: str | None = None
+    visible_when: dict[str, Any] | None = None
+
+
+class BaseTransformation(ABC):
+    """Abstract base class for all preprocessing transformations."""
+
+    name: str = ""
+    label: str = ""
+    description: str = ""
+    param_specs: tuple[ParamSpec, ...] = ()
+
+    def __init__(
+        self,
+        step_id: str | None = None,
+        params: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.id: str = step_id or uuid4().hex
+        self.params: dict[str, Any] = self.default_params()
+        if params:
+            self.params.update(dict(params))
+
+    @classmethod
+    def default_params(cls) -> dict[str, Any]:
+        return {spec.name: spec.default for spec in cls.param_specs}
+
+    @abstractmethod
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        """Apply the transformation to an input image."""
+        ...
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.name,
+            "params": deepcopy(self.params),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> BaseTransformation:
+        step_id = data.get("id") or uuid4().hex
+        params = data.get("params", {})
+        return cls(step_id=step_id, params=params)
+
+    # Dictionary-like access for backwards compatibility
+    def __getitem__(self, key: str) -> Any:
+        if key == "id":
+            return self.id
+        if key == "type":
+            return self.name
+        if key == "params":
+            return self.params
+        raise KeyError(key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key == "id":
+            self.id = value
+        elif key == "params":
+            self.params = value
+        else:
+            raise KeyError(f"Cannot set key '{key}' on {self.__class__.__name__}")
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def setdefault(self, key: str, default: Any = None) -> Any:
+        if key in ("id", "type", "params"):
+            return self[key]
+        return default
+
+
+class ConvertColorTransform(BaseTransformation):
+    """Convert image color mode (RGB, Grayscale, or Otsu Binary)."""
+
+    name = "convert_color"
+    label = "Convert color"
+    description = "Convert color channel mode between RGB, Grayscale, and Otsu Binary."
+    param_specs = (
+        ParamSpec(
+            name="mode",
+            label="Output mode",
+            type="select",
+            default=COLOR_GRAYSCALE,
+            options=[COLOR_RGB, COLOR_GRAYSCALE, COLOR_BINARY],
+            option_labels={
+                COLOR_RGB: "RGB",
+                COLOR_GRAYSCALE: "Grayscale",
+                COLOR_BINARY: "Binary (Otsu)",
+            },
+        ),
+    )
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return convert_color(image, **self.params)
+
+
+class ReverseColorTransform(BaseTransformation):
+    """Invert image color channels."""
+
+    name = "reverse_color"
+    label = "Reverse color"
+    description = "Invert all channel values, exchanging black and white."
+    param_specs = ()
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return reverse_color(image)
+
+
+class FilterTransform(BaseTransformation):
     """Remove small salt-and-pepper artifacts with a median filter."""
 
-    if not isinstance(kernel_size, (int, np.integer)) or kernel_size < 3:
-        raise ValueError("kernel_size must be an integer greater than or equal to 3")
-    if kernel_size % 2 == 0:
-        raise ValueError("kernel_size must be odd")
-    image = _as_uint8(image)
-    return cv2.medianBlur(image, int(kernel_size))
+    name = "filter"
+    label = "Filter (median)"
+    description = "Remove small salt-and-pepper artifacts with a median filter."
+    param_specs = (
+        ParamSpec(
+            name="kernel_size",
+            label="Median kernel size",
+            type="slider",
+            default=3,
+            min_value=3,
+            max_value=31,
+            step=2,
+            help="Larger values remove more salt-and-pepper artifacts.",
+        ),
+    )
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return remove_artifact(image, **self.params)
 
 
-@dataclass
+class BinaryMorphologyTransform(BaseTransformation):
+    """Morphological operations on binary images."""
+
+    name = "binary_morphology"
+    label = "Binary morphology"
+    description = "Apply morphological operations (erode, dilate, open, close) on binary images."
+    param_specs = (
+        ParamSpec(
+            name="operation",
+            label="Operation",
+            type="select",
+            default="open",
+            options=["erode", "dilate", "open", "close"],
+            option_labels={
+                "erode": "Erode",
+                "dilate": "Dilate",
+                "open": "Open",
+                "close": "Close",
+            },
+        ),
+        ParamSpec(
+            name="kernel_size",
+            label="Kernel size",
+            type="slider",
+            default=3,
+            min_value=1,
+            max_value=31,
+            step=2,
+        ),
+        ParamSpec(
+            name="iterations",
+            label="Iterations",
+            type="number",
+            default=1,
+            min_value=1,
+            max_value=20,
+            step=1,
+        ),
+        ParamSpec(
+            name="kernel_shape",
+            label="Kernel shape",
+            type="select",
+            default="rect",
+            options=["rect", "ellipse"],
+            option_labels={"rect": "Rectangular", "ellipse": "Elliptical"},
+        ),
+        ParamSpec(
+            name="kernel_orientation",
+            label="Rectangle orientation",
+            type="select",
+            default="square",
+            options=["square", "horizontal", "vertical"],
+            option_labels={
+                "square": "Square",
+                "horizontal": "Horizontal",
+                "vertical": "Vertical",
+            },
+            visible_when={"kernel_shape": "rect"},
+        ),
+    )
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return binary_morphology(image, **self.params)
+
+
+class GrayscaleMorphologyTransform(BaseTransformation):
+    """Morphological operations on grayscale images."""
+
+    name = "grayscale_morphology"
+    label = "Grayscale morphology"
+    description = "Apply morphological operations on grayscale images including top-hat filters."
+    param_specs = (
+        ParamSpec(
+            name="operation",
+            label="Operation",
+            type="select",
+            default="open",
+            options=[
+                "erode",
+                "dilate",
+                "open",
+                "close",
+                "white_tophat",
+                "black_tophat",
+            ],
+            option_labels={
+                "erode": "Erode",
+                "dilate": "Dilate",
+                "open": "Open",
+                "close": "Close",
+                "white_tophat": "White tophat",
+                "black_tophat": "Black tophat",
+            },
+        ),
+        ParamSpec(
+            name="kernel_size",
+            label="Kernel size",
+            type="slider",
+            default=3,
+            min_value=1,
+            max_value=31,
+            step=2,
+        ),
+        ParamSpec(
+            name="iterations",
+            label="Iterations",
+            type="number",
+            default=1,
+            min_value=1,
+            max_value=20,
+            step=1,
+        ),
+        ParamSpec(
+            name="kernel_shape",
+            label="Kernel shape",
+            type="select",
+            default="rect",
+            options=["rect", "ellipse"],
+            option_labels={"rect": "Rectangular", "ellipse": "Elliptical"},
+        ),
+        ParamSpec(
+            name="kernel_orientation",
+            label="Rectangle orientation",
+            type="select",
+            default="square",
+            options=["square", "horizontal", "vertical"],
+            option_labels={
+                "square": "Square",
+                "horizontal": "Horizontal",
+                "vertical": "Vertical",
+            },
+            visible_when={"kernel_shape": "rect"},
+        ),
+    )
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return grayscale_morphology(image, **self.params)
+
+
+# ---------------------------------------------------------------------------
+# PreprocessPipeline holding all available transformation methods
+# ---------------------------------------------------------------------------
+
+
 class PreprocessPipeline:
     """An editable, serializable sequence of preprocessing transformations."""
 
-    steps: list[dict[str, Any]] | None = None
+    _REGISTRY: dict[str, type[BaseTransformation]] = {}
 
-    def __post_init__(self) -> None:
-        self.steps = deepcopy(self.steps or [])
-        for step in self.steps:
-            step.setdefault("id", uuid4().hex)
-            step.setdefault("params", {})
+    @classmethod
+    def register_transformation(cls, transform_cls: type[BaseTransformation]) -> None:
+        """Register a transformation class into the pipeline registry."""
+        if not transform_cls.name:
+            raise ValueError("Transformation class must define a non-empty 'name'.")
+        cls._REGISTRY[transform_cls.name] = transform_cls
 
-    @staticmethod
-    def default_step(step_type: str) -> dict[str, Any]:
-        defaults: dict[str, dict[str, Any]] = {
-            "convert_color": {"mode": COLOR_GRAYSCALE},
-            "reverse_color": {},
-            "filter": {"kernel_size": 3},
-            "binary_morphology": {
-                "operation": "open",
-                "kernel_size": 3,
-                "iterations": 1,
-                "kernel_shape": "rect",
-                "kernel_orientation": "square",
-            },
-            "grayscale_morphology": {
-                "operation": "open",
-                "kernel_size": 3,
-                "iterations": 1,
-                "kernel_shape": "rect",
-                "kernel_orientation": "square",
-            },
-        }
-        if step_type not in defaults:
-            raise ValueError(f"unsupported pipeline step: {step_type}")
+    @classmethod
+    def get_available_transformations(cls) -> dict[str, type[BaseTransformation]]:
+        """Return all registered transformation classes keyed by transformation name."""
+        return dict(cls._REGISTRY)
+
+    @classmethod
+    def get_transformation_class(cls, step_type: str) -> type[BaseTransformation]:
+        """Look up a transformation class by name, with alias support."""
+        if step_type in cls._REGISTRY:
+            return cls._REGISTRY[step_type]
+        # Alias support
+        if step_type == "remove_artifact" and "filter" in cls._REGISTRY:
+            return cls._REGISTRY["filter"]
+        raise ValueError(f"unsupported pipeline step: {step_type}")
+
+    @classmethod
+    def default_step(cls, step_type: str) -> dict[str, Any]:
+        """Return a default step dictionary for backward compatibility."""
+        transform_cls = cls.get_transformation_class(step_type)
         return {
             "id": uuid4().hex,
-            "type": step_type,
-            "params": deepcopy(defaults[step_type]),
+            "type": transform_cls.name,
+            "params": transform_cls.default_params(),
         }
+
+    def __init__(
+        self,
+        steps: list[BaseTransformation | Mapping[str, Any]] | None = None,
+    ) -> None:
+        self.steps: list[BaseTransformation] = []
+        if steps:
+            for step in steps:
+                if isinstance(step, BaseTransformation):
+                    self.steps.append(step)
+                elif isinstance(step, Mapping):
+                    step_type = step.get("type")
+                    if not step_type:
+                        raise ValueError("Step dictionary missing 'type' key")
+                    transform_cls = self.get_transformation_class(str(step_type))
+                    self.steps.append(transform_cls.from_dict(step))
+                else:
+                    raise TypeError(f"Invalid step type: {type(step)}")
 
     def add_step(
         self,
         step_type: str,
         params: Mapping[str, Any] | None = None,
     ) -> int:
-        step = self.default_step(step_type)
-        if params:
-            step["params"].update(dict(params))
+        """Instantiate and append a transformation step to the pipeline."""
+        transform_cls = self.get_transformation_class(step_type)
+        step = transform_cls(params=params)
         self.steps.append(step)
         return len(self.steps) - 1
 
     def remove_step(self, index: int) -> None:
+        """Remove a transformation step by index."""
         self._check_index(index)
         self.steps.pop(index)
 
     def move_step(self, index: int, new_index: int) -> None:
+        """Move a transformation step from index to new_index."""
         self._check_index(index)
         if not 0 <= new_index < len(self.steps):
             raise IndexError("new_index is outside the pipeline")
@@ -318,31 +632,53 @@ class PreprocessPipeline:
         self.steps.insert(new_index, step)
 
     def update_step(self, index: int, params: Mapping[str, Any]) -> None:
+        """Update parameters for the transformation step at index."""
         self._check_index(index)
-        self.steps[index].setdefault("params", {}).update(dict(params))
+        self.steps[index].params.update(dict(params))
 
     def apply(self, image: np.ndarray) -> np.ndarray:
+        """Apply all pipeline transformations in order.
+
+        If no transformations are configured, the input image is returned
+        directly without any modification or type conversion.
+        """
+        if not self.steps:
+            return image
+
         result = _as_uint8(image)
         for step in self.steps:
-            step_type = step.get("type")
-            params = dict(step.get("params", {}))
-            if step_type == "convert_color":
-                result = convert_color(result, **params)
-            elif step_type == "reverse_color":
-                result = reverse_color(result, **params)
-            elif step_type == "filter":
-                result = remove_artifact(result, **params)
-            elif step_type == "binary_morphology":
-                result = binary_morphology(result, **params)
-            elif step_type == "grayscale_morphology":
-                result = grayscale_morphology(result, **params)
-            else:
-                raise ValueError(f"unsupported pipeline step: {step_type}")
+            result = step.apply(result)
         return result
 
     def to_dict(self) -> list[dict[str, Any]]:
-        return deepcopy(self.steps)
+        """Serialize pipeline steps to a list of dictionaries."""
+        return [step.to_dict() for step in self.steps]
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any] | list[dict[str, Any]],
+    ) -> PreprocessPipeline:
+        """Create a PreprocessPipeline from saved settings or a steps list."""
+        if isinstance(data, dict):
+            if data.get("version") not in (1, 2):
+                raise ValueError(f"unsupported settings version: {data.get('version')}")
+            steps = data.get("steps")
+            if not isinstance(steps, list):
+                raise ValueError("settings must contain a list of pipeline steps")
+            return cls(steps)
+        if isinstance(data, list):
+            return cls(data)
+        raise TypeError("data must be a dictionary or list")
 
     def _check_index(self, index: int) -> None:
         if not 0 <= index < len(self.steps):
             raise IndexError("pipeline step index is outside the pipeline")
+
+
+# Register built-in transformations into PreprocessPipeline
+PreprocessPipeline.register_transformation(ConvertColorTransform)
+PreprocessPipeline.register_transformation(ReverseColorTransform)
+PreprocessPipeline.register_transformation(FilterTransform)
+PreprocessPipeline.register_transformation(BinaryMorphologyTransform)
+PreprocessPipeline.register_transformation(GrayscaleMorphologyTransform)

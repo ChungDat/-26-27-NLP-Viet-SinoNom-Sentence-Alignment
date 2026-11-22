@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -9,16 +11,10 @@ import streamlit as st
 from PIL import Image
 
 try:
-    from ..ocr_viet import (
-        VLMOCR,
-        TesseractOCR,
-    )
+    from ..ocr_viet import TesseractOCR, VLMOCR
     from ..preprocess import PreprocessPipeline
 except ImportError:
-    from ocr_viet import (  # type: ignore[no-redef]
-        VLMOCR,
-        TesseractOCR,
-    )
+    from ocr_viet import TesseractOCR, VLMOCR  # type: ignore[no-redef]
     from preprocess import PreprocessPipeline  # type: ignore[no-redef]
 
 LOW_CONFIDENCE_THRESHOLD = 85.0
@@ -62,6 +58,20 @@ def _set_comparison_text(version: int, text: str) -> None:
     st.session_state[f"v{version}_col_area"] = text
 
 
+def _clear_comparison_state() -> None:
+    """Clear all extraction results and metadata across comparison versions."""
+    for version in range(1, 5):
+        _set_comparison_text(version, "")
+    st.session_state.cmp_v1_annotated = None
+    st.session_state.cmp_v3_annotated = None
+    st.session_state.cmp_v2_response = None
+    st.session_state.cmp_v4_response = None
+    st.session_state.cmp_v1_status = "Not run"
+    st.session_state.cmp_v2_status = "Not run"
+    st.session_state.cmp_v3_status = "Not run"
+    st.session_state.cmp_v4_status = "Not run"
+
+
 def _bounding_box_filter_controls() -> tuple[int, int]:
     """Render the shared OCR bounding-box size controls in the sidebar."""
     st.subheader("Bounding-box filter")
@@ -83,7 +93,7 @@ def _bounding_box_filter_controls() -> tuple[int, int]:
     return int(min_width), int(min_height)
 
 
-def _uploaded_image(uploaded_file) -> np.ndarray | None:
+def _uploaded_image(uploaded_file: Any) -> np.ndarray | None:
     if uploaded_file is None:
         return None
     try:
@@ -93,134 +103,74 @@ def _uploaded_image(uploaded_file) -> np.ndarray | None:
         return None
 
 
-def _step_label(step_type: str) -> str:
-    return {
-        "convert_color": "Convert color",
-        "reverse_color": "Reverse color",
-        "filter": "Filter (median)",
-        "binary_morphology": "Binary morphology",
-        "grayscale_morphology": "Grayscale morphology",
-    }.get(step_type, step_type.replace("_", " ").title())
-
-
-def _pipeline_from_settings(settings: object) -> PreprocessPipeline:
-    """Validate a saved JSON settings object and build its pipeline."""
-    if not isinstance(settings, dict) or settings.get("version") != 1:
-        raise ValueError("settings must be a version 1 JSON object")
-    steps = settings.get("steps")
-    if not isinstance(steps, list):
-        raise ValueError("settings must contain a list of pipeline steps")
-
-    for index, step in enumerate(steps, start=1):
-        if not isinstance(step, dict) or not isinstance(step.get("type"), str):
-            raise ValueError(f"step {index} is missing its transformation type")
-        if "params" in step and not isinstance(step["params"], dict):
-            raise ValueError(f"step {index} has invalid transformation parameters")
-        PreprocessPipeline.default_step(step["type"])
-    return PreprocessPipeline(steps)
-
-
 def _render_step_controls(pipeline: PreprocessPipeline, index: int) -> bool:
-    """Render one editable pipeline step and return whether it was changed."""
+    """Dynamically render controls for one pipeline step based on its parameter specs."""
     step = pipeline.steps[index]
-    step_id = step.setdefault("id", f"step-{index}")
-    step_type = step.get("type", "")
-    params = step.setdefault("params", {})
+    step_id = getattr(step, "id", f"step-{index}")
+    step_label = getattr(step, "label", getattr(step, "name", f"Step {index + 1}"))
+    params = getattr(step, "params", {})
     changed = False
 
-    with st.expander(f"{index + 1}. {_step_label(step_type)}", expanded=True):
-        if step_type == "convert_color":
-            mode_labels = {0: "RGB", 1: "Grayscale", 2: "Binary (Otsu)"}
-            current_mode = int(params.get("mode", 1))
-            mode = st.selectbox(
-                "Output mode",
-                list(mode_labels),
-                format_func=mode_labels.get,
-                index=list(mode_labels).index(current_mode)
-                if current_mode in mode_labels
-                else 1,
-                key=f"{step_id}-mode",
-            )
-            if params.get("mode") != mode:
-                params["mode"] = mode
-                changed = True
-        elif step_type == "reverse_color":
-            st.caption("Invert all channel values, exchanging black and white.")
-        elif step_type == "filter":
-            kernel_size = st.slider(
-                "Median kernel size",
-                min_value=3,
-                max_value=31,
-                value=int(params.get("kernel_size", 3)),
-                step=2,
-                help="Larger values remove more salt-and-pepper artifacts.",
-                key=f"{step_id}-filter-kernel-size",
-            )
-            if params.get("kernel_size") != kernel_size:
-                params["kernel_size"] = kernel_size
-                changed = True
-        elif step_type in {"binary_morphology", "grayscale_morphology"}:
-            operations = ["erode", "dilate", "open", "close"]
-            if step_type == "grayscale_morphology":
-                operations.extend(["white_tophat", "black_tophat"])
-            current_operation = params.get("operation", "open")
-            operation = st.selectbox(
-                "Operation",
-                operations,
-                index=operations.index(current_operation)
-                if current_operation in operations
-                else operations.index("open"),
-                key=f"{step_id}-operation",
-            )
-            kernel_size = st.slider(
-                "Kernel size",
-                min_value=1,
-                max_value=31,
-                value=int(params.get("kernel_size", 3)),
-                step=2,
-                key=f"{step_id}-kernel-size",
-            )
-            iterations = st.number_input(
-                "Iterations",
-                min_value=1,
-                max_value=20,
-                value=int(params.get("iterations", 1)),
-                step=1,
-                key=f"{step_id}-iterations",
-            )
-            kernel_shape = st.selectbox(
-                "Kernel shape",
-                ["rect", "ellipse"],
-                index=0 if params.get("kernel_shape", "rect") == "rect" else 1,
-                format_func=lambda value: (
-                    "Rectangular" if value == "rect" else "Elliptical"
-                ),
-                key=f"{step_id}-kernel-shape",
-            )
-            kernel_orientation = params.get("kernel_orientation", "square")
-            if kernel_shape == "rect":
-                orientations = ["square", "horizontal", "vertical"]
-                kernel_orientation = st.selectbox(
-                    "Rectangle orientation",
-                    orientations,
-                    index=orientations.index(kernel_orientation)
-                    if kernel_orientation in orientations
-                    else 0,
-                    format_func=lambda value: value.title(),
-                    key=f"{step_id}-kernel-orientation",
+    with st.expander(f"{index + 1}. {step_label}", expanded=True):
+        description = getattr(step, "description", None)
+        if description:
+            st.caption(description)
+
+        for spec in getattr(step, "param_specs", ()):
+            # Check conditional visibility
+            if spec.visible_when:
+                if any(params.get(k) != v for k, v in spec.visible_when.items()):
+                    continue
+
+            current_val = params.get(spec.name, spec.default)
+            widget_key = f"{step_id}-{spec.name}"
+
+            if spec.type == "select":
+                options = spec.options or []
+                fmt = (
+                    (
+                        lambda value, labels=spec.option_labels: labels.get(
+                            value, str(value)
+                        )
+                    )
+                    if spec.option_labels
+                    else str
                 )
-            new_params = {
-                "operation": operation,
-                "kernel_size": int(kernel_size),
-                "iterations": int(iterations),
-                "kernel_shape": kernel_shape,
-                "kernel_orientation": kernel_orientation,
-            }
-            if any(params.get(key) != value for key, value in new_params.items()):
-                params.update(new_params)
+                opt_idx = options.index(current_val) if current_val in options else 0
+                new_val = st.selectbox(
+                    spec.label,
+                    options,
+                    index=opt_idx,
+                    format_func=fmt,
+                    help=spec.help,
+                    key=widget_key,
+                )
+            elif spec.type == "slider":
+                new_val = st.slider(
+                    spec.label,
+                    min_value=spec.min_value,
+                    max_value=spec.max_value,
+                    value=current_val,
+                    step=spec.step or 1,
+                    help=spec.help,
+                    key=widget_key,
+                )
+            elif spec.type == "number":
+                new_val = st.number_input(
+                    spec.label,
+                    min_value=spec.min_value,
+                    max_value=spec.max_value,
+                    value=current_val,
+                    step=spec.step or 1,
+                    help=spec.help,
+                    key=widget_key,
+                )
+            else:
+                continue
+
+            if params.get(spec.name) != new_val:
+                params[spec.name] = new_val
                 changed = True
-        else:
-            st.error(f"Unsupported pipeline step: {step_type}")
 
         move_left, move_right, remove = st.columns(3)
         with move_left:
@@ -239,23 +189,60 @@ def _render_step_controls(pipeline: PreprocessPipeline, index: int) -> bool:
             if st.button("Remove", key=f"{step_id}-remove"):
                 pipeline.remove_step(index)
                 return True
+
     return changed
+
+
+def _run_tesseract_extraction(
+    image: np.ndarray,
+    config: str,
+    min_width: int,
+    min_height: int,
+) -> tuple[str, Any, str]:
+    """Execute Tesseract OCR and return (text, annotated_image, status)."""
+    try:
+        tess = TesseractOCR(lang="vie", confidence_threshold=LOW_CONFIDENCE_THRESHOLD)
+        tess.run(image, config=config, min_width=min_width, min_height=min_height)
+        return tess.text, tess.annotate_image(), "Success"
+    except Exception as error:
+        return f"Error: {error}", None, f"Failed ({error})"
+
+
+def _run_vlm_extraction(
+    image: np.ndarray,
+    model: str,
+    temperature: float,
+) -> tuple[str, Any, str]:
+    """Execute VLM OCR and return (text, raw_response, status)."""
+    try:
+        vlm = VLMOCR(model=model, options={"temperature": temperature})
+        vlm.run(image)
+        return vlm.text, vlm.raw_response, "Success"
+    except Exception as error:
+        return f"Error: {error}", None, f"Failed ({error})"
 
 
 def main() -> None:
     """Main entry point for the Preprocess Images page (page 2)."""
     st.header("2. Preprocess images")
 
-    # Language selector at top of main page (not sidebar)
+    # Language selector at top of main page
     language = st.radio(
         "Document language",
-        ["vie", "sino-nom"],
+        ["vi", "ch"],
         horizontal=True,
         key="document_language",
     )
 
     extracted_images = st.session_state.get("images", [])
     extracted_pages = st.session_state.get("pages", [])
+
+    if "preprocess_steps" not in st.session_state:
+        st.session_state.preprocess_steps = []
+    pipeline = PreprocessPipeline(st.session_state.preprocess_steps)
+
+    # Track whether modifications have been applied
+    st.session_state["preprocess_modified"] = bool(pipeline.steps)
 
     with st.sidebar:
         source_options = ["Upload an image"] + [
@@ -278,46 +265,41 @@ def main() -> None:
         else:
             source_image = extracted_images[source_index - 1]
 
-        if "preprocess_steps" not in st.session_state:
-            st.session_state.preprocess_steps = []
-        pipeline = PreprocessPipeline(st.session_state.preprocess_steps)
-
         st.subheader("Transformation pipeline")
+
+        # Dynamically discover available transformations from PreprocessPipeline
+        available_transforms = PreprocessPipeline.get_available_transformations()
         add_type = st.selectbox(
             "Transformation to add",
-            [
-                "convert_color",
-                "reverse_color",
-                "filter",
-                "binary_morphology",
-                "grayscale_morphology",
-            ],
-            format_func=_step_label,
+            options=list(available_transforms.keys()),
+            format_func=lambda key: available_transforms[key].label,
             key="preprocess_add_type",
         )
+
         add_col, reset_col = st.columns(2)
         with add_col:
             if st.button("Add transformation"):
                 pipeline.add_step(add_type)
                 st.session_state.preprocess_steps = pipeline.to_dict()
+                st.session_state["preprocess_modified"] = bool(pipeline.steps)
                 st.rerun()
         with reset_col:
             if st.button("Reset pipeline"):
                 pipeline = PreprocessPipeline()
                 st.session_state.preprocess_steps = []
-                for version in range(1, 5):
-                    _set_comparison_text(version, "")
-                st.session_state.cmp_v1_annotated = None
-                st.session_state.cmp_v3_annotated = None
-                st.session_state.cmp_v2_response = None
-                st.session_state.cmp_v4_response = None
+                st.session_state["preprocess_modified"] = False
+                _clear_comparison_state()
                 st.rerun()
 
         for index in range(len(pipeline.steps)):
             if _render_step_controls(pipeline, index):
                 st.session_state.preprocess_steps = pipeline.to_dict()
+                st.session_state["preprocess_modified"] = bool(pipeline.steps)
                 st.rerun()
+
         st.session_state.preprocess_steps = pipeline.to_dict()
+        st.session_state["preprocess_modified"] = bool(pipeline.steps)
+
         settings = {"version": 1, "steps": pipeline.to_dict()}
         st.download_button(
             "Save preprocess settings",
@@ -327,6 +309,7 @@ def main() -> None:
             disabled=not pipeline.steps,
             help="Download the current transformation pipeline as JSON.",
         )
+
         imported_settings = st.file_uploader(
             "Saved preprocess settings",
             type=["json"],
@@ -338,19 +321,19 @@ def main() -> None:
             disabled=imported_settings is None,
         ):
             try:
-                imported_pipeline = _pipeline_from_settings(
-                    json.loads(imported_settings.getvalue().decode("utf-8"))
-                )
-            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                raw_data = json.loads(imported_settings.getvalue().decode("utf-8"))
+                imported_pipeline = PreprocessPipeline.from_dict(raw_data)
+            except (
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+                ValueError,
+                TypeError,
+            ) as error:
                 st.error(f"Could not import settings: {error}")
             else:
                 st.session_state.preprocess_steps = imported_pipeline.to_dict()
-                for version in range(1, 5):
-                    _set_comparison_text(version, "")
-                st.session_state.cmp_v1_annotated = None
-                st.session_state.cmp_v3_annotated = None
-                st.session_state.cmp_v2_response = None
-                st.session_state.cmp_v4_response = None
+                st.session_state["preprocess_modified"] = bool(imported_pipeline.steps)
+                _clear_comparison_state()
                 st.rerun()
 
         st.divider()
@@ -416,77 +399,43 @@ def main() -> None:
 
     if run_all or run_tess:
         with st.spinner("Running Tesseract OCR on original & preprocessed images…"):
-            try:
-                tess_ocr_v1 = TesseractOCR(
-                    lang="vie",
-                    confidence_threshold=LOW_CONFIDENCE_THRESHOLD,
-                )
-                tess_ocr_v1.run(
-                    source_image,
-                    config=cmp_psm,
-                    min_width=min_box_width,
-                    min_height=min_box_height,
-                )
-                _set_comparison_text(1, tess_ocr_v1.text)
-                st.session_state.cmp_v1_annotated = tess_ocr_v1.annotate_image()
-                st.session_state.cmp_v1_status = "Success"
-            except Exception as error:
-                _set_comparison_text(1, f"Error: {error}")
-                st.session_state.cmp_v1_annotated = None
-                st.session_state.cmp_v1_status = f"Failed ({error})"
-                st.error(f"Tesseract (Original) failed: {error}")
+            v1_text, v1_ann, v1_st = _run_tesseract_extraction(
+                source_image, cmp_psm, min_box_width, min_box_height
+            )
+            _set_comparison_text(1, v1_text)
+            st.session_state.cmp_v1_annotated = v1_ann
+            st.session_state.cmp_v1_status = v1_st
+            if v1_st != "Success":
+                st.error(f"Tesseract (Original): {v1_text}")
 
-            try:
-                tess_ocr_v3 = TesseractOCR(
-                    lang="vie",
-                    confidence_threshold=LOW_CONFIDENCE_THRESHOLD,
-                )
-                tess_ocr_v3.run(
-                    processed_image,
-                    config=cmp_psm,
-                    min_width=min_box_width,
-                    min_height=min_box_height,
-                )
-                _set_comparison_text(3, tess_ocr_v3.text)
-                st.session_state.cmp_v3_annotated = tess_ocr_v3.annotate_image()
-                st.session_state.cmp_v3_status = "Success"
-            except Exception as error:
-                _set_comparison_text(3, f"Error: {error}")
-                st.session_state.cmp_v3_annotated = None
-                st.session_state.cmp_v3_status = f"Failed ({error})"
-                st.error(f"Tesseract (Preprocessed) failed: {error}")
+            v3_text, v3_ann, v3_st = _run_tesseract_extraction(
+                processed_image, cmp_psm, min_box_width, min_box_height
+            )
+            _set_comparison_text(3, v3_text)
+            st.session_state.cmp_v3_annotated = v3_ann
+            st.session_state.cmp_v3_status = v3_st
+            if v3_st != "Success":
+                st.error(f"Tesseract (Preprocessed): {v3_text}")
 
     if run_all or run_vlm:
         with st.spinner("Running VLM OCR on original & preprocessed images…"):
-            try:
-                vlm_ocr_v2 = VLMOCR(
-                    model=vlm_model,
-                    options={"temperature": vlm_temperature},
-                )
-                vlm_ocr_v2.run(source_image)
-                _set_comparison_text(2, vlm_ocr_v2.text)
-                st.session_state.cmp_v2_response = vlm_ocr_v2.raw_response
-                st.session_state.cmp_v2_status = "Success"
-            except Exception as error:
-                _set_comparison_text(2, f"Error: {error}")
-                st.session_state.cmp_v2_response = None
-                st.session_state.cmp_v2_status = f"Failed ({error})"
-                st.warning(f"VLM (Original) failed: {error}")
+            v2_text, v2_resp, v2_st = _run_vlm_extraction(
+                source_image, vlm_model, vlm_temperature
+            )
+            _set_comparison_text(2, v2_text)
+            st.session_state.cmp_v2_response = v2_resp
+            st.session_state.cmp_v2_status = v2_st
+            if v2_st != "Success":
+                st.warning(f"VLM (Original): {v2_text}")
 
-            try:
-                vlm_ocr_v4 = VLMOCR(
-                    model=vlm_model,
-                    options={"temperature": vlm_temperature},
-                )
-                vlm_ocr_v4.run(processed_image)
-                _set_comparison_text(4, vlm_ocr_v4.text)
-                st.session_state.cmp_v4_response = vlm_ocr_v4.raw_response
-                st.session_state.cmp_v4_status = "Success"
-            except Exception as error:
-                _set_comparison_text(4, f"Error: {error}")
-                st.session_state.cmp_v4_response = None
-                st.session_state.cmp_v4_status = f"Failed ({error})"
-                st.warning(f"VLM (Preprocessed) failed: {error}")
+            v4_text, v4_resp, v4_st = _run_vlm_extraction(
+                processed_image, vlm_model, vlm_temperature
+            )
+            _set_comparison_text(4, v4_text)
+            st.session_state.cmp_v4_response = v4_resp
+            st.session_state.cmp_v4_status = v4_st
+            if v4_st != "Success":
+                st.warning(f"VLM (Preprocessed): {v4_text}")
 
     v1_text = st.session_state.get("cmp_v1_text", "")
     v2_text = st.session_state.get("cmp_v2_text", "")
@@ -497,9 +446,7 @@ def main() -> None:
 
     has_extractions = any([v1_text, v2_text, v3_text, v4_text])
     if has_extractions:
-        tab_side, tab_cols, tab_summary = st.tabs(
-            ["Side-by-Side View", "4-Way Text View", "Metrics Summary"]
-        )
+        tab_side, tab_summary = st.tabs(["Side-by-Side View", "Metrics Summary"])
 
         with tab_side:
             col_orig, col_proc = st.columns(2, gap="medium")
@@ -575,98 +522,25 @@ def main() -> None:
                     key="cmp_v4_area",
                 )
 
-        with tab_cols:
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                st.markdown("**V1: Orig + Tesseract**")
-                s1 = _text_stats(v1_text)
-                st.caption(f"{s1['chars']}c / {s1['words']}w")
-                st.text_area("V1 Text", value=v1_text, height=350, key="v1_col_area")
-                st.download_button(
-                    "Download V1",
-                    data=v1_text,
-                    file_name="v1_original_tesseract.txt",
-                    disabled=not bool(v1_text),
-                    key="dl_v1",
-                )
-            with c2:
-                st.markdown("**V2: Orig + VLM**")
-                s2 = _text_stats(v2_text)
-                st.caption(f"{s2['chars']}c / {s2['words']}w")
-                st.text_area("V2 Text", value=v2_text, height=350, key="v2_col_area")
-                st.download_button(
-                    "Download V2",
-                    data=v2_text,
-                    file_name="v2_original_vlm.txt",
-                    disabled=not bool(v2_text),
-                    key="dl_v2",
-                )
-            with c3:
-                st.markdown("**V3: Prep + Tesseract**")
-                s3 = _text_stats(v3_text)
-                st.caption(f"{s3['chars']}c / {s3['words']}w")
-                st.text_area("V3 Text", value=v3_text, height=350, key="v3_col_area")
-                st.download_button(
-                    "Download V3",
-                    data=v3_text,
-                    file_name="v3_preprocessed_tesseract.txt",
-                    disabled=not bool(v3_text),
-                    key="dl_v3",
-                )
-            with c4:
-                st.markdown("**V4: Prep + VLM**")
-                s4 = _text_stats(v4_text)
-                st.caption(f"{s4['chars']}c / {s4['words']}w")
-                st.text_area("V4 Text", value=v4_text, height=350, key="v4_col_area")
-                st.download_button(
-                    "Download V4",
-                    data=v4_text,
-                    file_name="v4_preprocessed_vlm.txt",
-                    disabled=not bool(v4_text),
-                    key="dl_v4",
-                )
-
         with tab_summary:
             summary_data = [
                 {
-                    "Version": "V1",
-                    "Source Image": "Original",
-                    "OCR Engine": "Tesseract",
-                    "Characters": _text_stats(v1_text)["chars"],
-                    "Words": _text_stats(v1_text)["words"],
-                    "Paragraphs": _text_stats(v1_text)["paragraphs"],
-                    "Status": st.session_state.get("cmp_v1_status", "Not run"),
-                },
-                {
-                    "Version": "V2",
-                    "Source Image": "Original",
-                    "OCR Engine": "VLM",
-                    "Characters": _text_stats(v2_text)["chars"],
-                    "Words": _text_stats(v2_text)["words"],
-                    "Paragraphs": _text_stats(v2_text)["paragraphs"],
-                    "Status": st.session_state.get("cmp_v2_status", "Not run"),
-                },
-                {
-                    "Version": "V3",
-                    "Source Image": "Preprocessed",
-                    "OCR Engine": "Tesseract",
-                    "Characters": _text_stats(v3_text)["chars"],
-                    "Words": _text_stats(v3_text)["words"],
-                    "Paragraphs": _text_stats(v3_text)["paragraphs"],
-                    "Status": st.session_state.get("cmp_v3_status", "Not run"),
-                },
-                {
-                    "Version": "V4",
-                    "Source Image": "Preprocessed",
-                    "OCR Engine": "VLM",
-                    "Characters": _text_stats(v4_text)["chars"],
-                    "Words": _text_stats(v4_text)["words"],
-                    "Paragraphs": _text_stats(v4_text)["paragraphs"],
-                    "Status": st.session_state.get("cmp_v4_status", "Not run"),
-                },
+                    "Version": f"V{v}",
+                    "Source Image": src,
+                    "OCR Engine": eng,
+                    "Characters": _text_stats(txt)["chars"],
+                    "Words": _text_stats(txt)["words"],
+                    "Paragraphs": _text_stats(txt)["paragraphs"],
+                    "Status": st.session_state.get(f"cmp_v{v}_status", "Not run"),
+                }
+                for v, src, eng, txt in [
+                    (1, "Original", "Tesseract", v1_text),
+                    (2, "Original", "VLM", v2_text),
+                    (3, "Preprocessed", "Tesseract", v3_text),
+                    (4, "Preprocessed", "VLM", v4_text),
+                ]
             ]
             st.dataframe(pd.DataFrame(summary_data), width="stretch")
-    else:
         st.info(
             "Click '⚡ Run 4-Way Comparison' to run extractions on both images with both engines."
         )
@@ -678,10 +552,10 @@ def main() -> None:
         disabled=apply_disabled,
         help="Extract images from the first page before using this action.",
     ):
-        # Store pipeline steps in session state (OCR page reads them on demand)
         st.session_state.preprocess_steps = pipeline.to_dict()
+        st.session_state["preprocess_modified"] = bool(pipeline.steps)
 
-        # Clear all OCR session state so page 3 starts fresh with new pipeline
+        # Clear OCR session state so page 3 starts fresh with new pipeline
         for key in [
             "ocr_current_index",
             "ocr_page_cache",
@@ -698,12 +572,22 @@ def main() -> None:
         ]:
             st.session_state.pop(key, None)
         for key in list(st.session_state.keys()):
-            if key.startswith(("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")):
+            if key.startswith(
+                ("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")
+            ):
                 del st.session_state[key]
 
-        # Route to the appropriate OCR page based on language
-        if language == "vie":
-            st.switch_page("pages/3_ocr_image.py")
+        target_page = (
+            "pages/3_ocr_viet.py"
+            if (
+                (Path(__file__).parent / "3_ocr_viet.py").exists()
+                or Path("src/pages/3_ocr_viet.py").exists()
+                or Path("pages/3_ocr_viet.py").exists()
+            )
+            else "pages/3_ocr_image.py"
+        )
+        if language in ("vie", "vi"):
+            st.switch_page(target_page)
         else:
             st.switch_page("pages/3_ocr_sino_nom.py")
 

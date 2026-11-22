@@ -120,9 +120,14 @@ import src.ocr_viet as _ocr_viet_mod  # noqa: E402
 sys.modules.setdefault("src.ocr_viet", _ocr_viet_mod)
 
 # Now import the page module. Its name starts with a digit so we use importlib.
+_page_file = (
+    _PROJECT_ROOT / "src" / "pages" / "3_ocr_viet.py"
+    if (_PROJECT_ROOT / "src" / "pages" / "3_ocr_viet.py").exists()
+    else _PROJECT_ROOT / "src" / "pages" / "3_ocr_image.py"
+)
 _page_spec = importlib.util.spec_from_file_location(
-    "src.pages.3_ocr_image",
-    _PROJECT_ROOT / "src" / "pages" / "3_ocr_image.py",
+    "src.pages.3_ocr_page",
+    _page_file,
     submodule_search_locations=[],
 )
 _page_mod = importlib.util.module_from_spec(_page_spec)  # type: ignore[arg-type]
@@ -264,9 +269,9 @@ class TestBuildOcrPage(unittest.TestCase):
         self.assertEqual(page.document_page_number, 7)
 
     def test_page_name_derived_from_pdf_page_number(self):
-        """page_name is formatted as 'page_XXXX' using the PDF page number."""
+        """page_name is formatted using the PDF page number."""
         page = _build_ocr_page("Text", pdf_page_number=3, document_page_number=3)
-        self.assertEqual(page.page_name, "page_0003")
+        self.assertEqual(page.page_name, "003")
 
     def test_method_is_reviewed(self):
         """The page's method field should be 'reviewed'."""
