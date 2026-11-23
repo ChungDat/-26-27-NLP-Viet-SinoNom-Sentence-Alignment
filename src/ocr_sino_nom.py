@@ -1,7 +1,8 @@
-import requests
 import os
-from dotenv import load_dotenv
 from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
 
 BASE_URL = "https://kimhannom.fit.hcmus.edu.vn"
 
@@ -22,11 +23,7 @@ def upload_image(image_path: Path):
 
     with open(image_path, "rb") as image:
         response = requests.post(
-            BASE_URL + endpoint,
-            headers=header,
-            files={
-                "image_file": image
-            }
+            BASE_URL + endpoint, headers=header, files={"image_file": image}
         )
 
     return response
@@ -39,49 +36,41 @@ def classify_structure(image_name: str):
         "file_name": image_name,
     }
 
-    response = requests.post(
-        BASE_URL + endpoint,
-        headers=header,
-        json=payload
-    )
+    response = requests.post(BASE_URL + endpoint, headers=header, json=payload)
 
     return response
 
 
-def ocr_image(image_name: str, ocr_id: int = 1, lang_type: int = 2, reading_direction: int = 1):
+def ocr_image(
+    image_name: str, ocr_id: int = 1, lang_type: int = 2, reading_direction: int = 1
+):
     endpoint = "/api/web/clc-sinonom/image-ocr"
 
     payload = {
         "ocr_id": ocr_id,
         "lang_type": lang_type,
         "reading_direction": reading_direction,
-        "file_name": image_name
+        "file_name": image_name,
     }
 
-    response = requests.post(
-        BASE_URL + endpoint,
-        headers=header,
-        json=payload
-    )
+    response = requests.post(BASE_URL + endpoint, headers=header, json=payload)
 
     return response
 
 
-def rec_image(image_name: str, ocr_id: int = 1, lang_type: int = 2, reading_direction: int = 1):
+def rec_image(
+    image_name: str, ocr_id: int = 1, lang_type: int = 2, reading_direction: int = 1
+):
     endpoint = "/api/web/clc-sinonom/image-rec"
 
     payload = {
         "ocr_id": ocr_id,
         "lang_type": lang_type,
         "reading_direction": reading_direction,
-        "file_name": image_name
+        "file_name": image_name,
     }
 
-    response = requests.post(
-        BASE_URL + endpoint,
-        headers=header,
-        json=payload
-    )
+    response = requests.post(BASE_URL + endpoint, headers=header, json=payload)
 
     return response
 
@@ -92,9 +81,7 @@ def check_response(response):
     result = response.json()
 
     if not result.get("is_success"):
-        raise RuntimeError(
-            f"API failed:w {result}"
-        )
+        raise RuntimeError(f"API failed:w {result}")
 
     return result
 
@@ -112,6 +99,7 @@ def main():
         file.write(repr(upload_response))
         file.write(repr(structure_response))
         file.write(repr(ocr_response))
+
 
 if __name__ == "__main__":
     main()

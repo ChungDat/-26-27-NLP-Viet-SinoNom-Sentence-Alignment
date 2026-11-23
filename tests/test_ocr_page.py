@@ -677,7 +677,7 @@ class TestStagingHelpers(unittest.TestCase):
             return OCRPage(
                 pdf_page_number=n,
                 document_page_number=n,
-                page_name=f"page_{n:04d}",
+                page_name=f"page_{n:03d}",
                 method="reviewed",
                 paragraphs=[
                     OCRParagraph(

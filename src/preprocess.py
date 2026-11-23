@@ -9,14 +9,14 @@ BGR channels.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 from uuid import uuid4
 
 import cv2
 import numpy as np
-
 
 COLOR_RGB = 0
 COLOR_GRAYSCALE = 1
@@ -413,7 +413,9 @@ class BinaryMorphologyTransform(BaseTransformation):
 
     name = "binary_morphology"
     label = "Binary morphology"
-    description = "Apply morphological operations (erode, dilate, open, close) on binary images."
+    description = (
+        "Apply morphological operations (erode, dilate, open, close) on binary images."
+    )
     param_specs = (
         ParamSpec(
             name="operation",
@@ -478,7 +480,9 @@ class GrayscaleMorphologyTransform(BaseTransformation):
 
     name = "grayscale_morphology"
     label = "Grayscale morphology"
-    description = "Apply morphological operations on grayscale images including top-hat filters."
+    description = (
+        "Apply morphological operations on grayscale images including top-hat filters."
+    )
     param_specs = (
         ParamSpec(
             name="operation",

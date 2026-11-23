@@ -9,14 +9,6 @@ class OCRWord(BaseModel):
     confidence: float | None = None
 
 
-class OCRLine(BaseModel):
-    line_id: int | None = None
-    bbox: tuple[int, int, int, int] | None = None  # (x_min, y_min, x_max, y_max)
-    text: str
-    words: list[OCRWord] = Field(default_factory=list)
-    confidence: float | None = None
-
-
 class OCRParagraph(BaseModel):
     paragraph_id: int
     bbox: tuple[int, int, int, int] | None = None  # (x_min, y_min, x_max, y_max)
@@ -42,9 +34,8 @@ class OCRDocument(BaseModel):
 
 
 __all__ = [
-    "OCRWord",
-    "OCRLine",
-    "OCRParagraph",
-    "OCRPage",
     "OCRDocument",
+    "OCRPage",
+    "OCRParagraph",
+    "OCRWord",
 ]

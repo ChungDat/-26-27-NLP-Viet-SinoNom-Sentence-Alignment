@@ -559,7 +559,7 @@ class TesseractOCR:
         self,
         # font_path: str = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         font_size: int = 25,
-        box_width: int = 3,
+        box_width: int = 2,
         high_conf_color: tuple[int, int, int] = (0, 191, 255),
         low_conf_color: tuple[int, int, int] = (255, 0, 0),
     ) -> Image.Image:
@@ -630,7 +630,8 @@ class TesseractOCR:
                 width=box_width,
             )
 
-            label = f"{recognized_text} ({conf:.1f}%)"
+            # label = f"{recognized_text} ({conf:.1f}%)"
+            label = ""
             # label = f"{str(block_entries[index]).strip()}, {str(paragraph_entries[index]).strip()}"
             # label = ""
             draw.text(

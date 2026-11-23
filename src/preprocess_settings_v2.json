@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "c49690b3324a49f3bacb38aeae115844",
+      "type": "convert_color",
+      "params": {
+        "mode": 1
+      }
+    },
+    {
+      "id": "e358dd86f9e14a699a3666d36f2e56fb",
+      "type": "filter",
+      "params": {
+        "kernel_size": 3
+      }
+    }
+  ]
+}

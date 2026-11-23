@@ -1,20 +1,18 @@
 # Dóng hàng dữ liệu song song Hán Nôm – Quốc ngữ
 
-Đồ án xây dựng **bộ dữ liệu song song Hán Nôm – Quốc ngữ** từ sách scan, theo tài liệu *Hướng dẫn xây dựng dữ liệu song song Hán Nôm và Quốc ngữ* (phiên bản v2.3, 13/11/2026).
-
- 
+Đồ án xây dựng **bộ dữ liệu song song Hán Nôm – Quốc ngữ** từ sách scan, theo tài liệu _Hướng dẫn xây dựng dữ liệu song song Hán Nôm và Quốc ngữ_ (phiên bản v2.3, 13/11/2026).
 
 ## 1. Thông tin đề tài
 
-| Mục | Nội dung |
-|---|---|
-| Tên sách (đúng như file PDF được giao) | Sách Truyện Các Thánh |
-| Mã đề tài / phạm vi được giao |  toàn bộ chương được giao (Tháng 1, Tháng 2, Tháng 3) |
-| Loại sách | **T1**: Quốc ngữ ở đầu file, Nôm ở cuối file |
-| Nôm in hay viết tay | `TODO` (T1 hay T1w) |
-| Dạng nguồn | Scan cả hai bản (ảnh Nôm và ảnh Quốc ngữ) |
-| Kiểu dịch | **Dịch nghĩa** (không phải dịch âm 1–1) |
-| Nhóm | `TODO`: họ tên, MSSV, email sinh viên |
+| Mục                                    | Nội dung                                             |
+| -------------------------------------- | ---------------------------------------------------- |
+| Tên sách (đúng như file PDF được giao) | Sách Truyện Các Thánh                                |
+| Mã đề tài / phạm vi được giao          | toàn bộ chương được giao (Tháng 1, Tháng 2, Tháng 3) |
+| Loại sách                              | **T1**: Quốc ngữ ở đầu file, Nôm ở cuối file         |
+| Nôm in hay viết tay                    | `TODO` (T1 hay T1w)                                  |
+| Dạng nguồn                             | Scan cả hai bản (ảnh Nôm và ảnh Quốc ngữ)            |
+| Kiểu dịch                              | **Dịch nghĩa** (không phải dịch âm 1–1)              |
+| Nhóm                                   | `TODO`: họ tên, MSSV, email sinh viên                |
 
 ### Hệ quả của việc sách là T1 và dịch nghĩa
 
@@ -101,10 +99,12 @@ Giao diện cho phép: tải tài liệu, chọn khoảng trang để tách ản
 ## 5. Các bước chi tiết
 
 ### Bước 1. Xác nhận phạm vi và kiểm tra nguồn
+
 - Xác nhận tên sách, phạm vi được giao, nguồn Nôm và Quốc ngữ. Chưa chắc hai bản cùng phạm vi thì chưa OCR hàng loạt.
 - Nếu hơn 20% trang Nôm rách hoặc mờ thì báo người giao tài liệu trước khi làm.
 
 ### Bước 2. Tách PDF thành ảnh và phân loại
+
 - Dùng `src/extraction.py` (PyMuPDF), mặc định 300 DPI, **giữ độ phân giải gốc càng cao càng tốt**.
 - Tên ảnh: `<Tên sách>.<Số trang>[_<Số ảnh>].jpg`
   - Số trang có ít nhất 3 chữ số (001, 011, 111), đánh từ 1 theo thứ tự trong file PDF đang dùng (`_updated.pdf` nếu có, không thì PDF gốc). Từ 1000 trở lên không thêm số 0.
@@ -116,30 +116,35 @@ Giao diện cho phép: tải tài liệu, chọn khoảng trang để tách ản
 - Nếu có chỉnh ảnh (sáng, nét, xoay) thì phải ghép lại thành `<Tên sách>_updated.pdf` và báo người giao sách.
 
 ### Bước 3. Phát hiện trang mất do scan
+
 Dựa vào **số trang in sẵn** trên sách (không dựa vào số trang trong PDF):
 
-| Tình huống | Xử lý |
-|---|---|
-| Bản Nôm gốc vốn thiếu trang (bản dịch cũng không có, hoặc dịch giả ghi chú thiếu) | Không xử lý gì |
-| Mất trang Nôm, còn bản dịch Quốc ngữ | Chuyển ảnh Quốc ngữ sang `missing/vi`, không OCR, không đưa vào dóng hàng |
-| Mất bản dịch, còn trang Nôm | Ảnh Nôm lưu ở cả `ch` và `missing/ch`, vẫn OCR. Với sách dịch nghĩa, việc tổng hợp bản dịch dự đoán cần hỏi thầy trước |
+| Tình huống                                                                        | Xử lý                                                                                                                  |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Bản Nôm gốc vốn thiếu trang (bản dịch cũng không có, hoặc dịch giả ghi chú thiếu) | Không xử lý gì                                                                                                         |
+| Mất trang Nôm, còn bản dịch Quốc ngữ                                              | Chuyển ảnh Quốc ngữ sang `missing/vi`, không OCR, không đưa vào dóng hàng                                              |
+| Mất bản dịch, còn trang Nôm                                                       | Ảnh Nôm lưu ở cả `ch` và `missing/ch`, vẫn OCR. Với sách dịch nghĩa, việc tổng hợp bản dịch dự đoán cần hỏi thầy trước |
 
 Mọi trang mất do scan đều ghi vào `image_map`.
 
 ### Bước 4. Tiền xử lý ảnh (tùy chọn)
+
 - `src/preprocess.py`: khử nhiễu nền, nhị phân hóa, giãn và co hình thái (dilation/erosion). Tham số lưu ở `src/preprocess_settings.json`.
 - Chỉ dùng khi cải thiện kết quả OCR. Nhớ quy định về `_updated.pdf` ở Bước 2.
 
 ### Bước 5. OCR
+
 - **Quốc ngữ:** `src/ocr_viet.py` (PyTesseract, ngôn ngữ `vie`).
-  - Quy định yêu cầu Quốc ngữ **chính xác tuyệt đối**. Sách T1 thường là bản dịch cũ (dấu thanh cũ, từ cổ, in mờ) nên Tesseract có thể chưa đủ. Nên thử thêm OCR đa năng (Qwen-VL, PaddleOCR-VL, Vintern…) và voting 2–3 mô hình. *(chưa làm)*
+  - Quy định yêu cầu Quốc ngữ **chính xác tuyệt đối**. Sách T1 thường là bản dịch cũ (dấu thanh cũ, từ cổ, in mờ) nên Tesseract có thể chưa đủ. Nên thử thêm OCR đa năng (Qwen-VL, PaddleOCR-VL, Vintern…) và voting 2–3 mô hình. _(chưa làm)_
 - **Nôm:** `src/ocr_sino_nom.py` gọi API kimhannom: `image-upload → structure-classification → image-ocr`.
   - Giới hạn: 25 lượt/phút, 50/giờ, 200/ngày, 600/tuần. Mỗi ảnh cần ít nhất 2 lượt nên phải lập kế hoạch và đặt độ trễ giữa các request.
   - Nếu bounding box từ `image-ocr` không hợp lệ: chỉnh lại box, cắt từng dòng rồi dùng `image-rec`.
 - Nên thử trên vài ảnh mẫu trước khi chạy cả sách.
 
 ### Bước 6. Bounding box và làm sạch
+
 **Bounding box (định dạng PPOCRLabel):**
+
 - **Mỗi box đúng 4 điểm.** Tọa độ tính trên đúng ảnh được nộp; nếu ảnh bị xoay, ghép hoặc đổi kích thước thì phải quy đổi lại.
 - Nôm: đánh theo từng cột dọc, thứ tự **phải sang trái**, trên xuống dưới. Chú thích chữ nhỏ hai cột thì đánh 2 box.
 - Quốc ngữ: theo hàng hoặc đoạn (hoặc 1 box cho cả trang), thứ tự trái sang phải, trên xuống dưới.
@@ -147,13 +152,15 @@ Mọi trang mất do scan đều ghi vào `image_map`.
 - Trang rách: chỉ đánh tới ranh giới rách. Trang mờ nhưng đọc được: đánh bình thường.
 
 **Làm sạch văn bản:**
+
 - Chung: loại dòng trùng do OCR lặp vùng; bỏ chú thích chân trang, chỉ mục như `[1]`, `(1)`, ghi chú dịch giả chèn giữa bản dịch; sửa ký tự rác và khoảng trắng bất thường; giữ nguyên tên riêng, niên hiệu, con số.
 - Nôm: viết liền, không tự thêm dấu câu. Chữ chưa có trong Unicode hoặc font thì ghi `〓` (U+3013), mỗi `〓` thay đúng một chữ, và liệt kê trong báo cáo.
-- Quốc ngữ: giữ nguyên cách viết gốc (từ cổ, dấu cũ như *Sài-Gòn*, *kỹ-sư*), chỉ sửa lỗi OCR. Từ ngắt bằng gạch ngang cuối dòng thì ghép lại và bỏ gạch (trừ tên riêng hoặc từ vốn có gạch nối như *A-ve*). Các dòng nối bằng 1 khoảng trắng.
+- Quốc ngữ: giữ nguyên cách viết gốc (từ cổ, dấu cũ như _Sài-Gòn_, _kỹ-sư_), chỉ sửa lỗi OCR. Từ ngắt bằng gạch ngang cuối dòng thì ghép lại và bỏ gạch (trừ tên riêng hoặc từ vốn có gạch nối như _A-ve_). Các dòng nối bằng 1 khoảng trắng.
 - **Không có ký tự xuống dòng trong ô CSV/XLSX** (cả Nôm lẫn Quốc ngữ).
 - Chữ Nôm lem, nhòe không thấy: dùng `[MASK]`. Quy định gốc viết cho dịch âm, nên cần hỏi thầy trước khi áp dụng cho sách dịch nghĩa.
 
 ### Bước 7. Dò đối ứng trang và tạo `image_map`
+
 - Hai bản không theo thứ tự 1–1 theo số trang, nên phải dò đối ứng bằng nội dung (tên riêng, con số, tiêu đề).
 - File `<Tên sách>_image_map.json` (không bắt buộc nhưng nên làm):
   ```json
@@ -162,13 +169,18 @@ Mọi trang mất do scan đều ghi vào `image_map`.
       { "ch": ["Sách.010.jpg"], "vi": ["Sách.001.jpg"] },
       { "ch": ["Sách.009.jpg"], "vi": ["Sách.002.jpg"] },
       { "ch": ["Sách.008.jpg", "Sách.007.jpg"], "vi": ["Sách.003.jpg"] },
-      { "ch": ["Sách.020.jpg"], "vi": [], "note": "Trang Quốc ngữ tương ứng bị mất khi scan" }
+      {
+        "ch": ["Sách.020.jpg"],
+        "vi": [],
+        "note": "Trang Quốc ngữ tương ứng bị mất khi scan"
+      }
     ]
   }
   ```
 - Các cặp sắp theo thứ tự đọc của bản Quốc ngữ. Trong vế `ch`, ảnh Nôm theo thứ tự đọc (số trang giảm dần). Hai vế không được cùng rỗng; một vế rỗng nghĩa là trang mất do scan.
 
 ### Bước 8. Ghép câu, tách câu, dóng hàng
+
 - **Ghép câu bị ngắt do chuyển trang trước khi tách câu.** Với phần Nôm T1, câu ngắt ở cuối ảnh N tiếp tục ở đầu ảnh N−1. Câu ghép lấy `img_id` của ảnh chứa phần đầu câu; ảnh kế tiếp bắt đầu đánh số từ câu đầu tiên sau phần được nối.
 - Dấu gợi ý (không tuyệt đối): Nôm `。！？；：`, Quốc ngữ `.?!;:` kết hợp ngữ nghĩa (chú ý chữ viết tắt, số thứ tự, tên riêng có dấu chấm). Không tách câu quá ngắn (dưới khoảng 1–3 chữ).
 - Kiểu dóng hàng: **1–1** (ưu tiên), **1–n**, **n–1**, **n–m** (chỉ khi bản dịch tái cấu trúc mạnh). Với n–1 và n–m, `sentence_id` là của câu Nôm đầu tiên được gộp. Ưu tiên đơn vị nhỏ nhất vẫn đủ nghĩa.
@@ -181,13 +193,13 @@ Mọi trang mất do scan đều ghi vào `image_map`.
 
 File `<Tên sách>.csv` (UTF-8 **có BOM**) và `<Tên sách>.xlsx`, cùng 5 cột:
 
-| Cột | Nội dung |
-|---|---|
-| `img_id` | Tên ảnh, không có thư mục |
+| Cột           | Nội dung                                                                             |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `img_id`      | Tên ảnh, không có thư mục                                                            |
 | `sentence_id` | `<img_id bỏ .jpg>.<n>`, n là số thứ tự câu Nôm trên trang, từ 1 (ví dụ `Sách.024.1`) |
-| `ch_txt` | Văn bản Hán Nôm |
-| `vi_txt` | Văn bản Quốc ngữ |
-| `text_diff` | Luôn là `null` (dịch nghĩa) |
+| `ch_txt`      | Văn bản Hán Nôm                                                                      |
+| `vi_txt`      | Văn bản Quốc ngữ                                                                     |
+| `text_diff`   | Luôn là `null` (dịch nghĩa)                                                          |
 
 - Ghi bằng thư viện `csv` hoặc `pandas`, không tự ghép chuỗi.
 - Chuẩn hóa Unicode **NFC** cho cả hai vế.
@@ -231,6 +243,7 @@ Lưu ý: nếu trong quá trình xử lý tên sách bị mã hóa (ví dụ `Lo
 ## 8. Báo cáo
 
 File PDF, tên theo tên file zip, gồm:
+
 - Họ tên, MSSV, email sinh viên của từng thành viên.
 - Mô tả công việc đã làm (mô hình, quy trình).
 - Tổng số cặp dịch nghĩa và tỷ lệ trên tổng số cặp.
@@ -290,3 +303,9 @@ File PDF, tên theo tên file zip, gồm:
 - Hướng dẫn xây dựng dữ liệu song song Hán Nôm và Quốc ngữ, v2.3 (13/11/2026).
 - Công cụ chuyển tự và OCR Hán Nôm: https://kimhannom.fit.hcmus.edu.vn/
 - PPOCRLabel (công cụ đánh nhãn bounding box).
+
+## 13. Note trích xuất ảnh
+
+Phần chữ Nôm của Tháng 2 bị mất 3 trang (1 trang trống/234 và 2 trang nội dung/ 295, 296, 315, 316, ), trùng (424, 425)
+
+Phần Quốc ngữ của Tháng 3 có offset 2, phần chữ Nôm offset 3

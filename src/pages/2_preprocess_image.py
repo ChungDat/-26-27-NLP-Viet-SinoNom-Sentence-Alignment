@@ -11,10 +11,10 @@ import streamlit as st
 from PIL import Image
 
 try:
-    from ..ocr_viet import TesseractOCR, VLMOCR
+    from ..ocr_viet import VLMOCR, TesseractOCR
     from ..preprocess import PreprocessPipeline
 except ImportError:
-    from ocr_viet import TesseractOCR, VLMOCR  # type: ignore[no-redef]
+    from ocr_viet import VLMOCR, TesseractOCR  # type: ignore[no-redef]
     from preprocess import PreprocessPipeline  # type: ignore[no-redef]
 
 LOW_CONFIDENCE_THRESHOLD = 85.0
@@ -70,27 +70,6 @@ def _clear_comparison_state() -> None:
     st.session_state.cmp_v2_status = "Not run"
     st.session_state.cmp_v3_status = "Not run"
     st.session_state.cmp_v4_status = "Not run"
-
-
-def _bounding_box_filter_controls() -> tuple[int, int]:
-    """Render the shared OCR bounding-box size controls in the sidebar."""
-    st.subheader("Bounding-box filter")
-    st.caption("Hide boxes when either dimension is below the selected size.")
-    min_width = st.number_input(
-        "Minimum box width (px)",
-        min_value=0,
-        value=50,
-        step=1,
-        key="bbox_min_width",
-    )
-    min_height = st.number_input(
-        "Minimum box height (px)",
-        min_value=0,
-        value=50,
-        step=1,
-        key="bbox_min_height",
-    )
-    return int(min_width), int(min_height)
 
 
 def _uploaded_image(uploaded_file: Any) -> np.ndarray | None:
@@ -226,16 +205,52 @@ def main() -> None:
     """Main entry point for the Preprocess Images page (page 2)."""
     st.header("2. Preprocess images")
 
-    # Language selector at top of main page
-    language = st.radio(
-        "Document language",
-        ["vi", "ch"],
-        horizontal=True,
-        key="document_language",
-    )
+    # Language selector to route to different ocr pipeline
+    col_language, col_source = st.columns(2)
+    with col_language:
+        language = st.radio(
+            "Language",
+            options=["vi", "ch"],
+            index=0,
+            format_func=lambda x: "Quốc ngữ (vi)" if x == "vi" else "Hán Nôm (ch)",
+            horizontal=True,
+            key="document_language",
+        )
 
-    extracted_images = st.session_state.get("images", [])
-    extracted_pages = st.session_state.get("pages", [])
+    with col_source:
+        document_name = st.text_area(
+            "Source (PDF filename)", key="document_name"
+        ).strip()
+
+    if not document_name:
+        st.warning(
+            "⚠️ No document specified. Extract a document on Page 1 "
+            "(1_upload_document) or enter the document name above."
+        )
+        st.stop()
+
+    doc_dir = Path(document_name) / language
+    if not doc_dir.is_dir():
+        st.warning(
+            f"⚠️ Extracted images directory `{doc_dir}` not found. "
+            f"Extract pages for '{document_name}' on Page 1 (1_upload_document) "
+            f"or check that the language ('{language}') and document name match your extracted folder."
+        )
+        st.stop()
+
+    extracted_pages = []
+    for entry in sorted(doc_dir.glob("*.jpg")):
+        file_name = entry.stem
+        parts = file_name.split(".")
+        if len(parts) >= 2:
+            extracted_pages.append(parts[-1])
+
+    if not extracted_pages:
+        st.warning(
+            f"⚠️ No image files found in `{doc_dir}`. "
+            "Extract images on Page 1 (1_upload_document) first."
+        )
+        st.stop()
 
     if "preprocess_steps" not in st.session_state:
         st.session_state.preprocess_steps = []
@@ -246,7 +261,7 @@ def main() -> None:
 
     with st.sidebar:
         source_options = ["Upload an image"] + [
-            f"Extracted page {page}" for page in extracted_pages
+            f"Extracted page {page_num}" for page_num in extracted_pages
         ]
         source_index = st.selectbox(
             "Source image",
@@ -263,7 +278,21 @@ def main() -> None:
             )
             source_image = _uploaded_image(uploaded_image)
         else:
-            source_image = extracted_images[source_index - 1]
+            page_num = extracted_pages[source_index - 1]
+            file_path = (
+                Path(document_name) / language / f"{document_name}.{page_num}.jpg"
+            )
+            if not file_path.exists():
+                matched = sorted(
+                    (Path(document_name) / language).glob(
+                        f"{document_name}.{page_num}*.jpg"
+                    )
+                )
+                if matched:
+                    file_path = matched[0]
+            bgr_img = cv2.imread(str(file_path))
+            if bgr_img is not None:
+                source_image = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
 
         st.subheader("Transformation pipeline")
 
@@ -336,9 +365,6 @@ def main() -> None:
                 _clear_comparison_state()
                 st.rerun()
 
-        st.divider()
-        min_box_width, min_box_height = _bounding_box_filter_controls()
-
     if source_image is None:
         st.info("Choose or upload an image to preview the pipeline.")
         return
@@ -372,9 +398,22 @@ def main() -> None:
                 format_func=lambda config: f"{config} - {PSM_NOTES[config]}",
                 key="cmp_psm_config",
             )
-            st.caption(
-                f"Bounding-box filter: min width {min_box_width}px, min height {min_box_height}px"
+
+            min_box_width = st.number_input(
+                "Minimum box width (px)",
+                min_value=0,
+                value=5,
+                step=1,
+                key="bbox_min_width",
             )
+            min_box_height = st.number_input(
+                "Minimum box height (px)",
+                min_value=0,
+                value=5,
+                step=1,
+                key="bbox_min_height",
+            )
+
         with cfg_col2:
             st.markdown("**VLM (Ollama) settings**")
             vlm_model = st.text_input(
@@ -393,7 +432,7 @@ def main() -> None:
             )
 
     btn_all, btn_tess, btn_vlm = st.columns([1.5, 1, 1])
-    run_all = btn_all.button("⚡ Run 4-Way Comparison", type="primary")
+    run_all = btn_all.button("⚡ Run 4-Way Comparison")
     run_tess = btn_tess.button("Run Tesseract extractions (V1 & V3)")
     run_vlm = btn_vlm.button("Run VLM extractions (V2 & V4)")
 
@@ -545,13 +584,7 @@ def main() -> None:
             "Click '⚡ Run 4-Way Comparison' to run extractions on both images with both engines."
         )
 
-    apply_disabled = not bool(extracted_images)
-    if st.button(
-        "Apply pipeline to all extracted images and open OCR",
-        type="secondary",
-        disabled=apply_disabled,
-        help="Extract images from the first page before using this action.",
-    ):
+    if st.button("Apply pipeline to all extracted images and open OCR", type="primary"):
         st.session_state.preprocess_steps = pipeline.to_dict()
         st.session_state["preprocess_modified"] = bool(pipeline.steps)
 

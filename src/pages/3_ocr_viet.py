@@ -694,29 +694,58 @@ def _load_staging(output_path: str) -> list[OCRPage]:
 # ---------------------------------------------------------------------------
 
 
+def _get_image_dimensions(
+    sample_image_path: Path | str | None = None,
+    images: list[np.ndarray] | None = None,
+) -> tuple[int | None, int | None]:
+    """Retrieve image dimensions (height, width) from a path or image array."""
+    if images and len(images) > 0 and hasattr(images[0], "shape"):
+        h, w = images[0].shape[:2]
+        return int(h), int(w)
+    if sample_image_path:
+        p = Path(sample_image_path)
+        if p.exists():
+            try:
+                with Image.open(p) as img:
+                    w, h = img.size
+                    return int(h), int(w)
+            except Exception:
+                pass
+    return None, None
+
+
+def _load_image_from_disk(image_path: Path | str) -> np.ndarray:
+    """Load an image file from disk and convert BGR to RGB."""
+    bgr = cv2.imread(str(image_path))
+    if bgr is None:
+        raise FileNotFoundError(f"Could not load image: {image_path}")
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+
 def _perform_save_document(
     output_path: str,
     source_name: str,
     language: str,
-    images: list[np.ndarray],
+    sample_image_path: Path | str | None = None,
+    images: list[np.ndarray] | None = None,
 ) -> tuple[int, Path]:
     """Write confirmed pages to an OCRDocument JSON file.
 
-    Preprocessed images are saved at confirm time (not here). The staging file
-    is also synced after writing.
+    The staging file is also synced after writing.
 
     Args:
         output_path: Destination path for the OCRDocument JSON.
         source_name: Source PDF filename recorded in the document.
         language: Document language code (e.g. "vie").
-        images: Original extracted images (used only to read dimensions).
+        sample_image_path: Path to an extracted image file (to read dimensions).
+        images: Original extracted images (fallback to read dimensions).
 
     Returns:
         A 2-tuple of (n_saved_pages, out_path).
     """
     confirmed_pages_raw = st.session_state.get("ocr_confirmed_pages", [])
     confirmed_page_objs = [OCRPage(**p) for p in confirmed_pages_raw if p is not None]
-    h, w = images[0].shape[:2] if images else (None, None)
+    h, w = _get_image_dimensions(sample_image_path, images)
     doc = OCRDocument(
         source=source_name,
         language=language,
@@ -744,7 +773,8 @@ if hasattr(st, "dialog"):
         output_path: str,
         source_name: str,
         language: str,
-        images: list[np.ndarray],
+        sample_image_path: Path | str | None = None,
+        images: list[np.ndarray] | None = None,
     ) -> None:
         """Modal dialog to confirm overwriting an existing OCRDocument JSON.
 
@@ -752,6 +782,7 @@ if hasattr(st, "dialog"):
             output_path: Path to the existing file.
             source_name: Source PDF filename.
             language: Document language code.
+            sample_image_path: Path to an extracted image.
             images: Original extracted images.
         """
         st.warning(f"File `{output_path}` already exists.")
@@ -760,7 +791,11 @@ if hasattr(st, "dialog"):
         with col1:
             if st.button("Yes, Overwrite", type="primary", use_container_width=True):
                 n_pages, p = _perform_save_document(
-                    output_path, source_name, language, images
+                    output_path,
+                    source_name,
+                    language,
+                    sample_image_path=sample_image_path,
+                    images=images,
                 )
                 msg = f"Saved {n_pages} page(s) to `{p}`."
                 st.session_state["save_alert"] = ("success", msg)
@@ -774,7 +809,8 @@ def _handle_save_request(
     output_path: str,
     source_name: str,
     language: str,
-    images: list[np.ndarray],
+    sample_image_path: Path | str | None = None,
+    images: list[np.ndarray] | None = None,
 ) -> None:
     """Handle a save request, checking for existing files and prompting overwrite.
 
@@ -782,19 +818,32 @@ def _handle_save_request(
         output_path: Destination path for the OCRDocument JSON.
         source_name: Source PDF filename.
         language: Document language code.
+        sample_image_path: Path to an extracted image.
         images: Original extracted images.
     """
     out_p = Path(output_path)
     if out_p.exists() and not st.session_state.get("overwrite_approved", False):
         if hasattr(st, "dialog"):
-            _confirm_overwrite_dialog(output_path, source_name, language, images)
+            _confirm_overwrite_dialog(
+                output_path,
+                source_name,
+                language,
+                sample_image_path=sample_image_path,
+                images=images,
+            )
         else:
             # Fallback for environments where st.dialog is unavailable
             st.session_state["show_inline_overwrite_warning"] = True
             st.rerun()
     else:
         st.session_state["overwrite_approved"] = False
-        n_pages, p = _perform_save_document(output_path, source_name, language, images)
+        n_pages, p = _perform_save_document(
+            output_path,
+            source_name,
+            language,
+            sample_image_path=sample_image_path,
+            images=images,
+        )
         msg = f"Saved {n_pages} page(s) to `{p}`."
         st.session_state["save_alert"] = ("success", msg)
         st.rerun()
@@ -807,7 +856,7 @@ def _handle_save_request(
 
 def _process_and_ocr_for_index(
     index: int,
-    raw_images: list[np.ndarray],
+    image_input: np.ndarray | Path | str | list[np.ndarray],
     pages: list[int],
     pipeline_steps: list[dict],
     page_adjustment: int,
@@ -822,9 +871,9 @@ def _process_and_ocr_for_index(
     raw image. If the pipeline is empty the raw image is used for Tesseract.
 
     Args:
-        index: Index into raw_images and pages lists.
-        raw_images: List of original (un-preprocessed) page images.
-        pages: List of PDF page numbers corresponding to raw_images.
+        index: Index into pages list.
+        image_input: Image array, image Path/str on disk, or list of images.
+        pages: List of PDF page numbers corresponding to index.
         pipeline_steps: Serialized PreprocessPipeline steps list.
         page_adjustment: Offset added to PDF page number to get document page.
         psm_config: Tesseract PSM configuration string (e.g. "--psm 3").
@@ -845,14 +894,21 @@ def _process_and_ocr_for_index(
     doc_page = pdf_page + page_adjustment
     page_name = f"{pdf_page:03d}"
 
+    if isinstance(image_input, (str, Path)):
+        raw_image = _load_image_from_disk(image_input)
+    elif isinstance(image_input, list):
+        raw_image = image_input[index]
+    else:
+        raw_image = image_input
+
     # Parallel execution: run (Preprocessing + Tesseract) and (VLM OCR) concurrently
     def _prep_and_tess() -> tuple[
         np.ndarray, OCRPage | None, Image.Image | None, str | None
     ]:
         try:
-            prep = PreprocessPipeline(pipeline_steps).apply(raw_images[index])
+            prep = PreprocessPipeline(pipeline_steps).apply(raw_image)
         except Exception:
-            prep = raw_images[index]
+            prep = raw_image
 
         try:
             tess = TesseractOCR(
@@ -876,7 +932,7 @@ def _process_and_ocr_for_index(
         try:
             vlm = VLMOCR(model=VLM_MODEL)
             res = vlm.run(
-                raw_images[index],
+                raw_image,
                 pdf_page_number=pdf_page,
                 document_page_number=doc_page,
                 page_name=page_name,
@@ -1003,7 +1059,7 @@ def main() -> None:
                 st.number_input(
                     "Min bbox width (px)",
                     min_value=0,
-                    value=50,
+                    value=5,
                     step=1,
                     key="bbox_min_width",
                 )
@@ -1012,7 +1068,7 @@ def main() -> None:
                 st.number_input(
                     "Min bbox height (px)",
                     min_value=0,
-                    value=50,
+                    value=5,
                     step=1,
                     key="bbox_min_height",
                 )
@@ -1023,13 +1079,17 @@ def main() -> None:
                 value=st.session_state.get("ocr_output_path", "output/ocr_result.json"),
                 key="ocr_output_path",
             )
+            if "document_name" not in st.session_state:
+                st.session_state.document_name = ""
             st.text_input(
-                "Source name",
-                value=st.session_state.get("pdf_filename", ""),
-                key="ocr_source_name",
+                "Source (PDF filename)",
+                key="document_name",
+                help="Base folder and document name for extracted images",
             )
 
-        is_modified = st.session_state.get("preprocess_modified", bool(preprocess_steps))
+        is_modified = st.session_state.get(
+            "preprocess_modified", bool(preprocess_steps)
+        )
         if is_modified:
             st.caption(
                 f"ℹ️ Preprocessing pipeline: **Active ({len(preprocess_steps)} step{'s' if len(preprocess_steps) != 1 else ''})**"
@@ -1038,23 +1098,75 @@ def main() -> None:
             st.caption("ℹ️ Preprocessing pipeline: **None (using raw images)**")
 
     # -----------------------------------------------------------------------
-    # Image lists
+    # Document and image discovery from disk
     # -----------------------------------------------------------------------
-    images: list[np.ndarray] = st.session_state.get("images", [])
+    document_name = st.session_state.get("document_name", "").strip()
+    language = st.session_state.get("document_language", "vi")
+
+    destination_dir = Path(document_name) / language if document_name else None
+    image_paths: list[Path] = []
     pages: list[int] = st.session_state.get("pages", [])
 
-    if not images:
-        st.info("Extract PDF pages on the first page before running OCR.")
+    if destination_dir and destination_dir.is_dir():
+        if pages:
+            for page_num in pages:
+                pattern = f"{document_name}.{page_num:03d}*.jpg"
+                matched = sorted(destination_dir.glob(pattern))
+                if matched:
+                    image_paths.extend(matched)
+        if not image_paths:
+            all_jpgs = sorted(destination_dir.glob(f"{document_name}.*.jpg"))
+            discovered_pages: list[int] = []
+            for p in all_jpgs:
+                parts = p.stem.split(".")
+                if len(parts) >= 2:
+                    try:
+                        p_num = int(parts[-1].split("_")[0])
+                        discovered_pages.append(p_num)
+                        image_paths.append(p)
+                    except ValueError:
+                        pass
+            if image_paths and not pages:
+                pages = discovered_pages
+                st.session_state.pages = pages
+
+    legacy_images: list[np.ndarray] = st.session_state.get("images", [])
+    if not image_paths and legacy_images:
+        total = len(legacy_images)
+        if not pages:
+            pages = list(range(1, total + 1))
+            st.session_state.pages = pages
+        sample_image_path = None
+    elif image_paths:
+        total = len(image_paths)
+        sample_image_path = image_paths[0]
+    else:
+        if not document_name:
+            st.warning(
+                "⚠️ No document specified. Extract a document on Page 1 "
+                "(1_upload_document) or enter the document name in the OCR Configuration above."
+            )
+        elif destination_dir and not destination_dir.is_dir():
+            st.warning(
+                f"⚠️ Directory `{destination_dir}` does not exist. "
+                f"Extract pages for '{document_name}' on Page 1 (1_upload_document) "
+                f"or check that the language ('{language}') and document name match your extracted files."
+            )
+        else:
+            st.warning(
+                f"⚠️ No matching extracted images (`{document_name}.*.jpg`) found in `{destination_dir}`. "
+                "Extract PDF pages on Page 1 (1_upload_document) before running OCR."
+            )
         return
 
-    total = len(images)
+    images_sig = f"{document_name}_{language}_{total}" if image_paths else str(total)
 
-    # Reset cache if image count changed
+    # Reset cache if image count or document changed
     if (
         "ocr_images_signature" not in st.session_state
-        or st.session_state.ocr_images_signature != total
+        or st.session_state.ocr_images_signature != images_sig
     ):
-        st.session_state.ocr_images_signature = total
+        st.session_state.ocr_images_signature = images_sig
         st.session_state.ocr_page_cache = {}
         with _PREFETCH_LOCK:
             _PREFETCH_CACHE.clear()
@@ -1110,15 +1222,14 @@ def main() -> None:
             use_container_width=True,
             help="Save confirmed pages to OCRDocument JSON immediately.",
         ):
-            source_name = st.session_state.get(
-                "ocr_source_name", st.session_state.get("pdf_filename", "document.pdf")
-            )
+            source_name = st.session_state.get("document_name", "document.pdf")
             language = st.session_state.get("document_language", "vi")
             _handle_save_request(
                 output_path=output_path,
                 source_name=source_name,
                 language=language,
-                images=images,
+                sample_image_path=sample_image_path,
+                images=legacy_images if not image_paths else None,
             )
 
     # -----------------------------------------------------------------------
@@ -1139,16 +1250,14 @@ def main() -> None:
             if st.button("⚠️ Confirm Overwrite File", type="primary"):
                 st.session_state["show_inline_overwrite_warning"] = False
                 st.session_state["overwrite_approved"] = True
-                source_name = st.session_state.get(
-                    "ocr_source_name",
-                    st.session_state.get("pdf_filename", "document.pdf"),
-                )
+                source_name = st.session_state.get("document_name", "document.pdf")
                 language = st.session_state.get("document_language", "vi")
                 _handle_save_request(
                     output_path=output_path,
                     source_name=source_name,
                     language=language,
-                    images=images,
+                    sample_image_path=sample_image_path,
+                    images=legacy_images if not image_paths else None,
                 )
         with col_ow2:
             if st.button("Cancel"):
@@ -1166,9 +1275,7 @@ def main() -> None:
     col_hdr, col_adj = st.columns([3, 1])
     with col_hdr:
         status = "✅ Confirmed" if confirmed_flags[index] else "🔲 Pending"
-        st.subheader(
-            f"Image {index + 1} of {total} — PDF page {pdf_page} (actual page {doc_page}) — {status}"
-        )
+        st.subheader(f"Image {index + 1} of {total} — {status}")
         st.progress(n_confirmed / total, text=f"{n_confirmed}/{total} confirmed")
     with col_adj:
         page_adjustment = st.number_input(
@@ -1205,9 +1312,10 @@ def main() -> None:
     # Auto-trigger OCR if not cached
     if index not in st.session_state.ocr_page_cache:
         with st.spinner(f"Running Tesseract + VLM OCR on image {index + 1}…"):
+            curr_input = image_paths[index] if image_paths else legacy_images
             page_data = _process_and_ocr_for_index(
                 index=index,
-                raw_images=images,
+                image_input=curr_input,
                 pages=pages,
                 pipeline_steps=preprocess_steps,
                 page_adjustment=page_adjustment,
@@ -1260,10 +1368,11 @@ def main() -> None:
                 _PREFETCH_IN_PROGRESS.add(next_index)
 
         if should_prefetch:
+            next_input = image_paths[next_index] if image_paths else legacy_images
 
             def _bg_task(
                 idx=next_index,
-                imgs=images,
+                img_inp=next_input,
                 pgs=pages,
                 steps=preprocess_steps,
                 adj=page_adjustment,
@@ -1274,7 +1383,7 @@ def main() -> None:
                 try:
                     res = _process_and_ocr_for_index(
                         index=idx,
-                        raw_images=imgs,
+                        image_input=img_inp,
                         pages=pgs,
                         pipeline_steps=steps,
                         page_adjustment=adj,
@@ -1332,7 +1441,11 @@ def main() -> None:
             if is_modified:
                 display_options.insert(1, "Preprocessed image")
             saved_mode = st.session_state.get(f"image_view_mode_{index}", "Annotated")
-            mode_idx = display_options.index(saved_mode) if saved_mode in display_options else 0
+            mode_idx = (
+                display_options.index(saved_mode)
+                if saved_mode in display_options
+                else 0
+            )
             view_mode = st.radio(
                 "Image display mode",
                 display_options,
@@ -1351,6 +1464,13 @@ def main() -> None:
                 st.session_state.pop(f"ocr_vlm_widget_{index}", None)
                 st.rerun()
 
+        # Load active image on-demand for display
+        current_image = (
+            _load_image_from_disk(image_paths[index])
+            if image_paths
+            else legacy_images[index]
+        )
+
         # Choose what to display
         preprocessed_image = page_data.get("preprocessed_image")
         if view_mode == "Annotated":
@@ -1361,7 +1481,7 @@ def main() -> None:
             elif preprocessed_image is not None:
                 st.image(_image_to_pil(preprocessed_image), width="stretch")
             else:
-                st.image(_image_to_pil(images[index]), width="stretch")
+                st.image(_image_to_pil(current_image), width="stretch")
         elif view_mode == "Preprocessed image":
             if preprocessed_image is not None:
                 st.image(
@@ -1370,10 +1490,10 @@ def main() -> None:
                     width="stretch",
                 )
             else:
-                st.image(_image_to_pil(images[index]), width="stretch")
+                st.image(_image_to_pil(current_image), width="stretch")
         else:
             st.image(
-                _image_to_pil(images[index]),
+                _image_to_pil(current_image),
                 caption="Original image (VLM input)",
                 width="stretch",
             )
@@ -1450,20 +1570,7 @@ def main() -> None:
                 st.session_state.ocr_confirmed_flags = confirmed_flags
                 st.session_state.ocr_confirmed_pages[index] = page_obj.model_dump()
 
-                # Save preprocessed image to disk immediately at confirm time
-                result = st.session_state.ocr_page_cache.get(index, {})
-                prep_img = result.get("preprocessed_image")
-                if prep_img is not None:
-                    try:
-                        language = st.session_state.get("document_language", "vi")
-                        prep_dir = Path(output_path).parent / language
-                        prep_dir.mkdir(parents=True, exist_ok=True)
-                        img_path = prep_dir / f"{source_name}.{pdf_page:03d}.jpg"
-                        _image_to_pil(prep_img).save(img_path)
-                    except Exception as img_err:
-                        st.warning(f"Could not save preprocessed image: {img_err}")
-
-                # Rewrite staging file with all currently confirmed pages
+                # Rewrite staging file with all currently confirmed pages (no duplicate image file writes)
                 try:
                     _sync_staging_file(
                         st.session_state.ocr_confirmed_pages, output_path
@@ -1503,13 +1610,8 @@ def main() -> None:
             "You can write an intermediate OCRDocument JSON anytime."
         )
 
-    source_name = st.text_input(
-        "Source (PDF filename)",
-        value=st.session_state.get(
-            "ocr_source_name", st.session_state.get("pdf_filename", "")
-        ),
-        key="ocr_finalize_source_name",
-    )
+    source_name = st.session_state.get("document_name", "document.pdf")
+    st.caption(f"Source document: **{source_name}**")
 
     save_btn_label = (
         "Write OCRDocument JSON"
@@ -1522,7 +1624,8 @@ def main() -> None:
             output_path=output_path,
             source_name=source_name,
             language=language,
-            images=images,
+            sample_image_path=sample_image_path,
+            images=legacy_images if not image_paths else None,
         )
 
     # Provide download button if output file currently exists
