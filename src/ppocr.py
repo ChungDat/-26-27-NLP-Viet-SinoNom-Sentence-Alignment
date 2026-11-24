@@ -12,6 +12,7 @@ This module provides:
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ class PPOCRLabelAnnotation(BaseModel):
 
     transcription: str
     points: list[list[int]]
+    document_page_number: int | None = None
     align_to: int | None = None
 
     @field_validator("transcription")
@@ -158,7 +160,9 @@ def ocr_page_to_ppocr(
     page: OCRPage,
     image_path: str,
     *,
+    document_page_number: int | None = None,
     align_to: int | None = None,
+    skip_first_paragraph: bool = False,
 ) -> PPOCRLabelPage:
     """Convert an :class:`OCRPage` to a :class:`PPOCRLabelPage`.
 
@@ -174,19 +178,35 @@ def ocr_page_to_ppocr(
     - OCR-only fields (confidence, word-level data) are not present on
       :class:`OCRParagraph` after the schema migration and are therefore
       naturally excluded.
+    - ``document_page_number`` is attached to every annotation when provided
+      (defaulting to ``page.document_page_number`` if not explicitly passed).
     - ``align_to`` is attached to every annotation when provided.
+    - If ``skip_first_paragraph`` is True, the first paragraph (header) and its
+      bounding box are ignored.
 
     Args:
         page: Source :class:`OCRPage`.
         image_path: Relative image path for the Label.txt record.
+        document_page_number: Optional document page number to attach to annotations.
+            If None, uses ``page.document_page_number``.
         align_to: Optional page number to attach to every annotation for the
             later alignment stage.
+        skip_first_paragraph: Whether to omit the first paragraph (e.g. header).
 
     Returns:
         A :class:`PPOCRLabelPage` ready for serialization.
     """
+    doc_page_num = (
+        document_page_number
+        if document_page_number is not None
+        else getattr(page, "document_page_number", None)
+    )
+    paragraphs = page.paragraphs
+    if skip_first_paragraph and paragraphs:
+        paragraphs = paragraphs[1:]
+
     annotations: list[PPOCRLabelAnnotation] = []
-    for para in page.paragraphs:
+    for para in paragraphs:
         if para.bbox is None:
             continue
         transcription = (
@@ -198,6 +218,7 @@ def ocr_page_to_ppocr(
             PPOCRLabelAnnotation(
                 transcription=transcription,
                 points=bbox_to_points(para.bbox),
+                document_page_number=doc_page_num,
                 align_to=align_to,
             )
         )
@@ -255,6 +276,8 @@ def write_label_txt(
                     "transcription": ann.transcription,
                     "points": ann.points,
                 }
+                if ann.document_page_number is not None:
+                    entry["document_page_number"] = ann.document_page_number
                 if ann.align_to is not None:
                     entry["align_to"] = ann.align_to
                 annotations_data.append(entry)
@@ -404,6 +427,13 @@ def parse_label_txt(path: Path) -> list[PPOCRLabelPage]:
                     )
                 validated_points.append([int(pt[0]), int(pt[1])])
 
+            document_page_number = raw_ann.get("document_page_number")
+            if document_page_number is not None and not isinstance(document_page_number, int):
+                raise ValueError(
+                    f"Label.txt line {lineno}, annotation {ann_idx}: "
+                    f"document_page_number must be an integer or null, got {document_page_number!r}"
+                )
+
             align_to = raw_ann.get("align_to")
             if align_to is not None and not isinstance(align_to, int):
                 raise ValueError(
@@ -415,6 +445,7 @@ def parse_label_txt(path: Path) -> list[PPOCRLabelPage]:
                 PPOCRLabelAnnotation(
                     transcription=transcription.strip(),
                     points=validated_points,
+                    document_page_number=document_page_number,
                     align_to=align_to,
                 )
             )
@@ -483,6 +514,52 @@ def migrate_ocr_document_json(source_path: Path, dest_path: Path | None = None) 
     return write_to
 
 
+def parse_header_paragraph(
+    text: str,
+    language: str = "vi",
+) -> tuple[int | None, int | None]:
+    """Parse header paragraph for document page number and align-to page number.
+
+    The header text is expected to contain at most 2 numbers formatted like:
+    ``- <document_page> - [( <page_it_match_to> )]``.
+
+    Rules:
+    - First number is the document page number.
+    - Second number (if present and language == "vi") is the align_to page number.
+    - If language != "vi" (e.g. "ch" for sinonom) or no second number is found,
+      align_to is None.
+
+    Args:
+        text: Header paragraph text.
+        language: Document language ("vi" for Vietnamese, "ch" for Sino-Nom, etc.).
+
+    Returns:
+        A tuple of (document_page_number, align_to).
+    """
+    cleaned = unicodedata.normalize("NFC", text).strip()
+    # Try matching standard hyphen pattern: - <doc_page> - [ ( <align_to> ) ]
+    m = re.search(r"-\s*(\d+)\s*-(?:\s*\(\s*(\d+)\s*\))?", cleaned)
+    if m:
+        doc_page = int(m.group(1))
+        align_to = int(m.group(2)) if m.group(2) else None
+    else:
+        # Fallback: find all integer sequences in text
+        nums = re.findall(r"\d+", cleaned)
+        if len(nums) == 1:
+            doc_page = int(nums[0])
+            align_to = None
+        elif len(nums) >= 2:
+            doc_page = int(nums[0])
+            align_to = int(nums[1])
+        else:
+            return None, None
+
+    if language != "vi":
+        align_to = None
+
+    return doc_page, align_to
+
+
 __all__ = [
     "PPOCRLabelAnnotation",
     "PPOCRLabelPage",
@@ -490,6 +567,7 @@ __all__ = [
     "make_image_path",
     "migrate_ocr_document_json",
     "ocr_page_to_ppocr",
+    "parse_header_paragraph",
     "parse_label_txt",
     "write_file_state_txt",
     "write_label_txt",

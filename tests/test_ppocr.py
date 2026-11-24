@@ -19,6 +19,7 @@ from src.ppocr import (
     make_image_path,
     migrate_ocr_document_json,
     ocr_page_to_ppocr,
+    parse_header_paragraph,
     parse_label_txt,
     write_file_state_txt,
     write_label_txt,
@@ -523,6 +524,74 @@ class TestMigrateOcrDocumentJson(unittest.TestCase):
         pages = [OCRPage(**p) for p in pages_data]
         self.assertEqual(len(pages), 2)
         self.assertEqual(pages[0].document_page_number, 1)
+
+
+class TestHeaderParsingAndPPOCRExport(unittest.TestCase):
+    def test_parse_header_vietnamese_full(self) -> None:
+        doc_p, align_p = parse_header_paragraph("- 19 - (  459 )", language="vi")
+        self.assertEqual(doc_p, 19)
+        self.assertEqual(align_p, 459)
+
+    def test_parse_header_vietnamese_no_align(self) -> None:
+        doc_p, align_p = parse_header_paragraph("- 19 -", language="vi")
+        self.assertEqual(doc_p, 19)
+        self.assertIsNone(align_p)
+
+    def test_parse_header_sinonom_align_none(self) -> None:
+        # For sinonom ('ch'), align_to must be None even if secondary numbers exist
+        doc_p, align_p = parse_header_paragraph("- 19 - (  459 )", language="ch")
+        self.assertEqual(doc_p, 19)
+        self.assertIsNone(align_p)
+
+    def test_parse_header_no_numbers(self) -> None:
+        doc_p, align_p = parse_header_paragraph("CHƯƠNG THỨ NHẤT", language="vi")
+        self.assertIsNone(doc_p)
+        self.assertIsNone(align_p)
+
+    def test_ocr_page_to_ppocr_skip_first_paragraph(self) -> None:
+        page = _make_page([
+            _make_para("- 19 - (  459 )", bbox=(323, 88, 636, 110), pid=1),
+            _make_para("TỰA", bbox=(302, 159, 406, 194), pid=2),
+            _make_para("Nội dung bài viết", bbox=(60, 242, 640, 387), pid=3),
+        ], doc_page=19)
+        res = ocr_page_to_ppocr(
+            page,
+            "vi/doc.019.jpg",
+            document_page_number=19,
+            align_to=459,
+            skip_first_paragraph=True,
+        )
+        self.assertEqual(len(res.annotations), 2)
+        self.assertEqual(res.annotations[0].transcription, "TỰA")
+        self.assertEqual(res.annotations[0].document_page_number, 19)
+        self.assertEqual(res.annotations[0].align_to, 459)
+        self.assertEqual(res.annotations[0].points, [[302, 159], [406, 159], [406, 194], [302, 194]])
+        self.assertEqual(res.annotations[1].transcription, "Nội dung bài viết")
+        self.assertEqual(res.annotations[1].document_page_number, 19)
+        self.assertEqual(res.annotations[1].align_to, 459)
+
+    def test_round_trip_document_page_number(self) -> None:
+        pages = [
+            PPOCRLabelPage(
+                image_path="vi/doc.019.jpg",
+                annotations=[
+                    PPOCRLabelAnnotation(
+                        transcription="TỰA",
+                        points=[[1, 2], [3, 2], [3, 4], [1, 4]],
+                        document_page_number=19,
+                        align_to=459,
+                    )
+                ],
+            )
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "Label.txt"
+            write_label_txt(pages, out)
+            parsed = parse_label_txt(out)
+
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0].annotations[0].document_page_number, 19)
+        self.assertEqual(parsed[0].annotations[0].align_to, 459)
 
 
 if __name__ == "__main__":

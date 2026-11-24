@@ -41,6 +41,7 @@ try:
         PPOCRLabelPage,
         make_image_path,
         ocr_page_to_ppocr,
+        parse_header_paragraph,
         write_file_state_txt,
         write_label_txt,
     )
@@ -49,6 +50,7 @@ except ImportError:
         PPOCRLabelPage,
         make_image_path,
         ocr_page_to_ppocr,
+        parse_header_paragraph,
         write_file_state_txt,
         write_label_txt,
     )
@@ -1144,8 +1146,9 @@ def _perform_export_ppocr(
     """Export confirmed pages as PPOCRLabel Label.txt and fileState.txt.
 
     Image paths are built using :func:`make_image_path` from document metadata
-    stored in session state.  The ``align_to`` field on each annotation is set
-    to the page's ``document_page_number``.
+    stored in session state. The header paragraph (first paragraph) is parsed
+    for document_page_number and align_to, and is omitted from the exported
+    Label.txt annotations along with its bounding box.
 
     Args:
         export_dir: Directory in which to write ``Label.txt`` and
@@ -1167,9 +1170,24 @@ def _perform_export_ppocr(
 
     ppocr_pages: list[PPOCRLabelPage] = []
     for page in sorted(confirmed_page_objs, key=lambda p: p.document_page_number):
-        img_path = make_image_path(document_name, language, page.document_page_number)
+        # Extract header info if present in first paragraph
+        parsed_doc_page, parsed_align_to = None, None
+        has_header = False
+        if page.paragraphs:
+            p_doc, p_align = parse_header_paragraph(page.paragraphs[0].text, language=language)
+            if p_doc is not None:
+                has_header = True
+                parsed_doc_page = p_doc
+                parsed_align_to = p_align
+
+        doc_page_to_use = parsed_doc_page if parsed_doc_page is not None else page.document_page_number
+        img_path = make_image_path(document_name, language, doc_page_to_use)
         ppocr_page = ocr_page_to_ppocr(
-            page, img_path, align_to=page.document_page_number
+            page,
+            img_path,
+            document_page_number=doc_page_to_use,
+            align_to=parsed_align_to,
+            skip_first_paragraph=has_header,
         )
         ppocr_pages.append(ppocr_page)
 
@@ -1183,8 +1201,81 @@ def _perform_export_ppocr(
     return len(ppocr_pages), label_path, state_path
 
 
+def _execute_page_save(
+    page_data: dict,
+    output_path: str,
+    index: int,
+    total: int,
+) -> None:
+    """Execute the persistence of a confirmed OCR page object."""
+    page_obj = OCRPage(**page_data)
+    confirmed_flags = st.session_state.ocr_confirmed_flags
+    confirmed_flags[index] = True
+    st.session_state.ocr_confirmed_flags = confirmed_flags
+    st.session_state.ocr_confirmed_pages[index] = page_obj.model_dump()
+
+    # Rewrite staging file with all currently confirmed pages
+    try:
+        _sync_staging_file(st.session_state.ocr_confirmed_pages, output_path)
+    except Exception as e:
+        st.error(f"Could not write staging file: {e}")
+
+    # Save or update in target output_path (ocr_result.json)
+    saved_ok, action_or_reason = _save_or_update_ocr_page_in_json(
+        output_path=output_path,
+        page_obj=page_obj,
+        overwrite_existing=False,
+    )
+
+    if not saved_ok and action_or_reason == "already_exists":
+        st.session_state["pending_page_overwrite"] = page_obj.model_dump()
+        st.session_state["show_page_overwrite_dialog"] = True
+        st.rerun()
+    else:
+        st.session_state["save_alert"] = (
+            "success",
+            f"Page {page_obj.pdf_page_number} saved ({action_or_reason}) to `{output_path}`.",
+        )
+        if index < total - 1:
+            st.session_state.ocr_current_index = index + 1
+        st.rerun()
+
+
 # Overwrite confirmation dialog (requires Streamlit >= 1.29 for st.dialog)
 if hasattr(st, "dialog"):
+
+    @st.dialog("⚠️ Page Number Mismatch")
+    def _confirm_page_mismatch_dialog(
+        calculated_page: int,
+        parsed_page: int,
+        pending_data: dict,
+        output_path: str,
+        index: int,
+        total: int,
+    ) -> None:
+        """Modal dialog to warn and resolve page number mismatch."""
+        st.warning(
+            f"Page mismatch detected! Calculated document page is **{calculated_page}**, "
+            f"but header in text parsed as **{parsed_page}**."
+        )
+        st.write("Which page number should be used for this page?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(
+                f"Use Parsed ({parsed_page})", type="primary", use_container_width=True
+            ):
+                st.session_state.pop("show_page_mismatch_dialog", None)
+                st.session_state.pop("pending_page_mismatch", None)
+                pending_data["document_page_number"] = parsed_page
+                _execute_page_save(pending_data, output_path, index, total)
+        with col2:
+            if st.button(
+                f"Use Calculated ({calculated_page})", use_container_width=True
+            ):
+                st.session_state.pop("show_page_mismatch_dialog", None)
+                st.session_state.pop("pending_page_mismatch", None)
+                pending_data["document_page_number"] = calculated_page
+                _execute_page_save(pending_data, output_path, index, total)
 
     @st.dialog("⚠️ Overwrite Page in OCR Result")
     def _confirm_overwrite_page_dialog(
@@ -1206,10 +1297,12 @@ if hasattr(st, "dialog"):
                 )
                 msg = f"Page {p_num} overwritten in `{output_path}`."
                 st.session_state["save_alert"] = ("success", msg)
+                st.session_state.pop("show_page_overwrite_dialog", None)
                 st.session_state.pop("pending_page_overwrite", None)
                 st.rerun()
         with col2:
             if st.button("Cancel", use_container_width=True):
+                st.session_state.pop("show_page_overwrite_dialog", None)
                 st.session_state.pop("pending_page_overwrite", None)
                 st.rerun()
 
@@ -1766,8 +1859,30 @@ def main() -> None:
         elif level == "error":
             st.error(msg)
 
+    # Overwrite confirmation dialog for page in ocr_result.json
+    if hasattr(st, "dialog") and st.session_state.get("show_page_overwrite_dialog", False):
+        pending_page_data = st.session_state.get("pending_page_overwrite")
+        if pending_page_data:
+            _confirm_overwrite_page_dialog(
+                output_path=output_path,
+                page_dict=pending_page_data,
+            )
+
+    # Page mismatch confirmation dialog
+    if hasattr(st, "dialog") and st.session_state.get("show_page_mismatch_dialog", False):
+        mismatch_info = st.session_state.get("pending_page_mismatch")
+        if mismatch_info:
+            _confirm_page_mismatch_dialog(
+                calculated_page=mismatch_info["calculated_page"],
+                parsed_page=mismatch_info["parsed_page"],
+                pending_data=mismatch_info["pending_data"],
+                output_path=output_path,
+                index=mismatch_info["index"],
+                total=mismatch_info["total"],
+            )
+
     # Fallback inline overwrite warning for older Streamlit
-    if st.session_state.get("show_inline_overwrite_warning", False):
+    if not hasattr(st, "dialog") and st.session_state.get("show_inline_overwrite_warning", False):
         st.warning(f"File `{output_path}` already exists.")
         col_ow1, col_ow2 = st.columns(2)
         with col_ow1:
@@ -1815,6 +1930,33 @@ def main() -> None:
                     st.session_state["show_inline_page_overwrite_warning"] = False
                     st.session_state.pop("pending_page_overwrite", None)
                     st.rerun()
+
+    # Fallback inline page mismatch warning
+    if st.session_state.get("show_inline_page_mismatch_warning", False):
+        mismatch_info = st.session_state.get("pending_page_mismatch")
+        if mismatch_info:
+            calc_p = mismatch_info["calculated_page"]
+            pars_p = mismatch_info["parsed_page"]
+            pend_d = mismatch_info["pending_data"]
+            idx_p = mismatch_info["index"]
+            tot_p = mismatch_info["total"]
+            st.warning(
+                f"Page mismatch detected! Calculated document page is **{calc_p}**, "
+                f"but header in text parsed as **{pars_p}**."
+            )
+            col_mm1, col_mm2 = st.columns(2)
+            with col_mm1:
+                if st.button(f"Use Parsed ({pars_p})", type="primary"):
+                    st.session_state["show_inline_page_mismatch_warning"] = False
+                    st.session_state.pop("pending_page_mismatch", None)
+                    pend_d["document_page_number"] = pars_p
+                    _execute_page_save(pend_d, output_path, idx_p, tot_p)
+            with col_mm2:
+                if st.button(f"Use Calculated ({calc_p})"):
+                    st.session_state["show_inline_page_mismatch_warning"] = False
+                    st.session_state.pop("pending_page_mismatch", None)
+                    pend_d["document_page_number"] = calc_p
+                    _execute_page_save(pend_d, output_path, idx_p, tot_p)
 
     # -----------------------------------------------------------------------
     # Header: page info & navigation controls
@@ -2261,42 +2403,33 @@ def main() -> None:
                 filtered_raw=tess_filtered_raw,
                 custom_bboxes=custom_boxes if custom_boxes else None,
             )
-            confirmed_flags[index] = True
-            st.session_state.ocr_confirmed_flags = confirmed_flags
-            st.session_state.ocr_confirmed_pages[index] = page_obj.model_dump()
 
-            # Rewrite staging file with all currently confirmed pages (no duplicate image file writes)
-            try:
-                _sync_staging_file(st.session_state.ocr_confirmed_pages, output_path)
-            except Exception as e:
-                st.error(f"Could not write staging file: {e}")
+            # 2-step validation: check parsed document page number against calculated doc_page
+            parsed_doc_page, _ = (None, None)
+            if page_obj.paragraphs:
+                first_para_text = page_obj.paragraphs[0].text
+                parsed_doc_page, _ = parse_header_paragraph(
+                    first_para_text,
+                    language=st.session_state.get("document_language", "vi"),
+                )
 
-            # Save or update in target output_path (ocr_result.json)
-            saved_ok, action_or_reason = _save_or_update_ocr_page_in_json(
-                output_path=output_path,
-                page_obj=page_obj,
-                overwrite_existing=False,
-            )
-
-            if not saved_ok and action_or_reason == "already_exists":
-                st.session_state["pending_page_overwrite"] = page_obj.model_dump()
+            if parsed_doc_page is not None and parsed_doc_page != doc_page:
+                mismatch_payload = {
+                    "calculated_page": doc_page,
+                    "parsed_page": parsed_doc_page,
+                    "pending_data": page_obj.model_dump(),
+                    "index": index,
+                    "total": total,
+                }
+                st.session_state["pending_page_mismatch"] = mismatch_payload
                 if hasattr(st, "dialog"):
-                    _confirm_overwrite_page_dialog(
-                        output_path=output_path,
-                        page_dict=page_obj.model_dump(),
-                    )
+                    st.session_state["show_page_mismatch_dialog"] = True
+                    st.rerun()
                 else:
-                    st.session_state["show_inline_page_overwrite_warning"] = True
+                    st.session_state["show_inline_page_mismatch_warning"] = True
                     st.rerun()
             else:
-                st.session_state["save_alert"] = (
-                    "success",
-                    f"Page {pdf_page} saved ({action_or_reason}) to `{output_path}`.",
-                )
-                # Auto-advance if not last
-                if index < total - 1:
-                    st.session_state.ocr_current_index = index + 1
-                st.rerun()
+                _execute_page_save(page_obj.model_dump(), output_path, index, total)
 
     # -----------------------------------------------------------------------
     # Finalize section — always visible
