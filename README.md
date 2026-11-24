@@ -289,8 +289,10 @@ File PDF, tên theo tên file zip, gồm:
 │   ├── metric.py                # CER, WER
 │   ├── aligning.py              # dóng hàng câu
 │   └── benchmark_viet.py        # benchmark OCR Quốc ngữ
+├── T1_Sách Truyện Các Thánh (Tháng 1)
+├── T1_Sách Truyện Các Thánh (Tháng 2)
+├── T1_Sách Truyện Các Thánh (Tháng 3)
 ├── Nom_Font/                    # font Hán Nôm
-├── Dong_hang/                   # kết quả cuối để nộp (theo cấu trúc ở mục 7)
 └── dictionaries-*/              # từ điển, font tham khảo
 ```
 
@@ -306,6 +308,27 @@ File PDF, tên theo tên file zip, gồm:
 
 ## 13. Note trích xuất ảnh
 
-Phần chữ Nôm của Tháng 2 bị mất 3 trang (1 trang trống/234 và 2 trang nội dung/ 295, 296, 315, 316, ), trùng (424, 425)
+Mỗi trang Quốc ngữ tương ứng một trang Hán Nôm
 
-Phần Quốc ngữ của Tháng 3 có offset 2, phần chữ Nôm offset 3
+T1_Sách Truyện Các Thánh (Tháng 1) (470 trang)
+
+- Việt: 13 - 237
+- Hán Nôm: 241 - 465
+- Extra: 1 - 12, 238 - 240, 466 - 470
+
+T1_Sách Truyện Các Thánh (Tháng 2) (458 trang)
+
+- Việt: 7 - 231
+- Hán Nôm: 234 - 456
+- Extra: 1 - 6, 232 - 233, 457 - 458
+- Phần chữ Nôm: trang thực của tài liệu
+  - Mất 1 trang trống (dự đoán): 234
+  - Mất 4 trang nội dung: 295, 296, 315, 316
+  - 2 trang trùng: 424, 425
+
+T1_Sách Truyện Các Thánh (Tháng 3) (491 trang)
+
+- Việt: 5 - 245
+- Hán Nôm: 248 - 488
+- Extra: 1 - 4, 246 - 247, 489 - 491
+- Phần Quốc ngữ của Tháng 3 có offset 2, phần chữ Nôm offset 3

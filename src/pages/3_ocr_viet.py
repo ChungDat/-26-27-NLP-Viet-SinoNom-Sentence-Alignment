@@ -1301,14 +1301,9 @@ def _handle_export_request(
     state_p = Path(export_dir) / "fileState.txt"
     files_exist = label_p.exists() or state_p.exists()
 
-    if files_exist and not st.session_state.get("export_overwrite_approved", False):
-        if hasattr(st, "dialog"):
-            _confirm_overwrite_export_dialog(export_dir, document_name, language)
-        else:
-            st.session_state["show_inline_export_overwrite_warning"] = True
-            st.rerun()
+    if files_exist:
+        _confirm_overwrite_export_dialog(export_dir, document_name, language)
     else:
-        st.session_state["export_overwrite_approved"] = False
         try:
             n_pages, label_out, state_out = _perform_export_ppocr(
                 export_dir, document_name, language, overwrite=True
@@ -1572,7 +1567,7 @@ def main() -> None:
         # Do NOT clear confirmed pages
 
     with st.expander(
-        "⚙️ OCR Settings",
+        "⚙️ Settings",
         expanded=not bool(st.session_state.get("ocr_page_cache")),
     ):
         cfg_col1, cfg_col2, cfg_col3 = st.columns(3)
@@ -1583,6 +1578,16 @@ def main() -> None:
                 format_func=lambda c: f"{c} - {PSM_NOTES[c]}",
                 key="psm_config",
             )
+
+            language = st.radio(
+                "Language",
+                options=["vi", "ch"],
+                index=0,
+                format_func=lambda x: "Quốc ngữ (vi)" if x == "vi" else "Hán Nôm (ch)",
+                horizontal=True,
+                key="document_language",
+            )
+
         with cfg_col2:
             min_width = int(
                 st.number_input(
@@ -1815,8 +1820,6 @@ def main() -> None:
     # Header: page info & navigation controls
     # -----------------------------------------------------------------------
     pdf_page = pages[index]
-    page_adjustment = int(st.session_state.get("page_adjustment", 0))
-    doc_page = pdf_page + page_adjustment
     editor_key = f"ocr_editor_widget_{index}"
 
     col_hdr, col_adj = st.columns([3, 1])
@@ -1825,13 +1828,15 @@ def main() -> None:
         st.subheader(f"Image {index + 1} of {total} — {status}")
         st.progress(n_confirmed / total, text=f"{n_confirmed}/{total} confirmed")
     with col_adj:
-        page_adjustment = st.number_input(
-            "Page offset",
-            value=int(st.session_state.get("page_adjustment", 0)),
-            step=1,
-            help="Actual page = PDF page + offset",
-            key="page_adjustment",
+        page_adjustment = int(
+            st.number_input(
+                "Page offset",
+                step=1,
+                help="Actual page = PDF page + offset",
+                key="page_adjustment",
+            )
         )
+    doc_page = pdf_page + page_adjustment
 
     # -----------------------------------------------------------------------
     # Prefetch: move background result into session cache
@@ -2354,32 +2359,6 @@ def main() -> None:
         key="ppocr_export_dir",
         help="Directory where Label.txt and fileState.txt will be written.",
     )
-    export_dir_path = Path(export_dir_input)
-    label_exists = (export_dir_path / "Label.txt").exists()
-    state_exists = (export_dir_path / "fileState.txt").exists()
-    if label_exists or state_exists:
-        existing = ", ".join(
-            f"`{f}`"
-            for f, ex in [("Label.txt", label_exists), ("fileState.txt", state_exists)]
-            if ex
-        )
-        st.warning(f"⚠️ {existing} already exist in `{export_dir_input}`.")
-
-    # Inline overwrite warning for PPOCRLabel export (Streamlit < 1.29 fallback)
-    if st.session_state.get("show_inline_export_overwrite_warning", False):
-        st.warning(
-            f"`Label.txt` or `fileState.txt` already exists in `{export_dir_input}`."
-        )
-        col_ow1, col_ow2 = st.columns(2)
-        with col_ow1:
-            if st.button("⚠️ Confirm Overwrite Export", type="primary"):
-                st.session_state["show_inline_export_overwrite_warning"] = False
-                st.session_state["export_overwrite_approved"] = True
-                _handle_export_request(export_dir_input, source_name, language)
-        with col_ow2:
-            if st.button("Cancel Export"):
-                st.session_state["show_inline_export_overwrite_warning"] = False
-                st.rerun()
 
     if st.button(
         f"📤 Export PPOCRLabel ({n_confirmed} pages)",

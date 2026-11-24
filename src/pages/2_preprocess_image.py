@@ -619,7 +619,7 @@ def main() -> None:
             )
             else "pages/3_ocr_image.py"
         )
-        if language in ("vie", "vi"):
+        if language == "vi":
             st.switch_page(target_page)
         else:
             st.switch_page("pages/3_ocr_sino_nom.py")

@@ -14,6 +14,15 @@ MAX_UPLOAD_SIZE = 500  # MB
 ORIENTATION_THRESHOLD = 3.0
 
 
+def select_type(type):
+    if type == "vi":
+        return "Quốc ngữ (vi)"
+    elif type == "ch":
+        return "Hán Nôm (ch)"
+    else:
+        return "Khác"
+
+
 def main() -> None:
     st.header("1. Extract images from a PDF")
     uploaded_pdf = st.file_uploader(
@@ -42,16 +51,16 @@ def main() -> None:
         )
     with col_end:
         end = st.number_input(
-            "End page (Included)", min_value=1, max_value=page_count, value=int(start)
+            "End page (Inclusive)", min_value=1, max_value=page_count, value=int(start)
         )
     with col_step:
         step = st.number_input("Step", min_value=1, max_value=page_count, value=1)
     with col_lang:
-        language = st.radio(  # only for routing destination path, does not related to 2_preprocess_image language
-            "Language",
-            options=["vi", "ch"],
+        document_type = st.radio(  # only for routing destination path, does not related to 2_preprocess_image and 3_ocr_viet language
+            "Document type",
+            options=["vi", "ch", "extra"],
             index=0,
-            format_func=lambda x: "Quốc ngữ (vi)" if x == "vi" else "Hán Nôm (ch)",
+            format_func=select_type,
             horizontal=True,
         )
 
@@ -68,14 +77,14 @@ def main() -> None:
 
     if st.button("Confirm and extract images", type="primary"):
         document_name = Path(uploaded_pdf.name).stem
-        destination_dir = Path(document_name) / language
+        destination_dir = Path(document_name) / document_type
 
         with st.spinner("Extracting embedded images from selected pages…"):
             try:
                 doc.save_images(
                     pdf_pages=pages,
                     document_name=document_name,
-                    language=language,
+                    document_type=document_type,
                 )
             except (ValueError, FileNotFoundError, RuntimeError) as error:
                 st.error(f"Could not extract images: {error}")
@@ -102,7 +111,6 @@ def main() -> None:
         st.session_state.annotated_for = None
         st.session_state.annotated_config = None
         st.session_state.document_name = document_name
-        st.session_state.document_language = language
 
         # Reset all OCR page session state when a new document is extracted
         for key in list(st.session_state.keys()):

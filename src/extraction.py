@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import cv2
+import sys
 import numpy as np
 import pymupdf
 import pytesseract
@@ -135,32 +136,32 @@ class PDFDocument:
         self,
         pdf_pages: list[int],
         document_name: str | Path,
-        language: str = "vi",
+        document_type: str = "vi",
     ) -> None:
         """Extract embedded images from selected pages and save to disk in PPOCRLabel format.
 
         Selected pages are 1-indexed. The images are saved under the directory
-        `Path(document_name) / language` as JPEG (.jpg) files named:
+        `Path(document_name) / document_type` as JPEG (.jpg) files named:
         `<stem>.<page_number:03d>.jpg` (or `<stem>.<page_number:03d>_<img_index>.jpg`
         if multiple embedded images exist on the page).
 
         Args:
             pdf_pages: List of 1-indexed page numbers to extract.
             document_name: Document name or base path for output files.
-            language: Language folder name ('vi' or 'ch').
+            document_type: Document type folder name ('vi', 'ch' or 'extra').
 
         Returns:
             None.
 
         Raises:
             ValueError: If pdf_pages is empty, any page number is out of bounds,
-                or language is unsupported.
+                or document_type is unsupported.
             RuntimeError: If a requested page contains no embedded images or image
                 decoding/saving fails.
         """
-        if language not in ("vi", "ch"):
+        if document_type not in ("vi", "ch", "extra"):
             raise ValueError(
-                f"Unsupported language: {language!r}. Language must be 'vi' or 'ch'."
+                f"Unsupported document type: {document_type!r}. Language must be 'vi', 'ch' or 'extra'."
             )
 
         if not pdf_pages:
@@ -171,7 +172,7 @@ class PDFDocument:
             if Path(document_name).suffix
             else Path(document_name).name
         )
-        destination_path = Path(document_name) / language
+        destination_path = Path(document_name) / document_type
         destination_path.mkdir(parents=True, exist_ok=True)
 
         with self.open_pdf() as document:
@@ -208,9 +209,10 @@ class PDFDocument:
                             f"Failed to decode image data for page {page_num} (xref: {xref})."
                         )
 
-                    img, _ = self.rotate_image(
-                        img, self.orientation_threshold, language
-                    )
+                    if document_type != "extra":
+                        img, _ = self.rotate_image(
+                            img, self.orientation_threshold, document_type
+                        )
 
                     # Ensure standard 3-channel BGR for JPEG saving
                     if len(img.shape) == 3 and img.shape[2] == 4:
@@ -257,6 +259,7 @@ def select_pages(start: int, end: int, step: int = 1) -> list[int]:
 
 def main() -> None:
     """Extract sample pages from a PDF in each supported image mode."""
+
     pdf_source = Path(
         "CV19-Phạm Phúc An Khang-20120303/T1_Sách Truyện Các Thánh (Tháng 1).pdf"
     )

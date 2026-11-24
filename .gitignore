@@ -13,6 +13,10 @@ wheels/
 *.zip
 *.pdf
 *.jsonl
+*.jpg
+*.jpeg
+*.png
+*.xlsx
 .env
 
 .agents
@@ -20,8 +24,7 @@ wheels/
 .codex
 .vscode
 
-*.xlsx
-
 dictionaries-04-11-2026/
 test/
 Instruction/
+tasks/
