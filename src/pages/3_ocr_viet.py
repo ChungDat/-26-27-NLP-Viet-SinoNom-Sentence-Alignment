@@ -962,31 +962,110 @@ def _sync_staging_file(confirmed_pages: list[dict | None], output_path: str) -> 
 
 
 def _load_staging(output_path: str) -> list[OCRPage]:
-    """Load confirmed pages from the staging JSONL file.
+    """Load confirmed pages from the staging JSONL file or existing output JSON.
 
     Args:
         output_path: Path to the final OCRDocument JSON (determines staging path).
 
     Returns:
-        List of OCRPage objects deserialized from the staging file.
+        List of OCRPage objects deserialized from the staging file or existing JSON.
     """
     staging = _staging_path(output_path)
-    if not staging.exists():
-        return []
     pages: list[OCRPage] = []
-    for line in staging.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            try:
-                pages.append(OCRPage.model_validate_json(line))
-            except Exception:
-                pass
+    if staging.exists():
+        for line in staging.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    pages.append(OCRPage.model_validate_json(line))
+                except Exception:
+                    pass
+        if pages:
+            return pages
+
+    # Fallback to existing output JSON if staging doesn't exist
+    out_p = Path(output_path)
+    if out_p.exists():
+        try:
+            content = out_p.read_text(encoding="utf-8").strip()
+            if content:
+                loaded = json.loads(content)
+                if isinstance(loaded, list):
+                    for item in loaded:
+                        try:
+                            pages.append(OCRPage.model_validate(item))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
     return pages
 
 
 # ---------------------------------------------------------------------------
 # Document saving helpers
 # ---------------------------------------------------------------------------
+
+
+def _save_or_update_ocr_page_in_json(
+    output_path: str,
+    page_obj: OCRPage,
+    overwrite_existing: bool = False,
+) -> tuple[bool, str]:
+    """Append or overwrite a single OCRPage in the output JSON file.
+
+    If the file does not exist, it is created with [page_obj].
+    If the file exists:
+      - If a page with matching pdf_page_number exists and overwrite_existing is False,
+        returns (False, "already_exists").
+      - If matching page exists and overwrite_existing is True, it overwrites that entry
+        and returns (True, "overwritten").
+      - If no matching page exists, it appends page_obj, sorts pages by pdf_page_number,
+        and returns (True, "appended").
+
+    Args:
+        output_path: Path to the target JSON file.
+        page_obj: OCRPage to insert or update.
+        overwrite_existing: Whether to allow overwriting if pdf_page_number exists.
+
+    Returns:
+        (success, action_or_reason)
+    """
+    out_p = Path(output_path)
+    existing_pages: list[dict] = []
+    if out_p.exists():
+        try:
+            content = out_p.read_text(encoding="utf-8").strip()
+            if content:
+                loaded = json.loads(content)
+                if isinstance(loaded, list):
+                    existing_pages = loaded
+        except Exception:
+            existing_pages = []
+
+    # Check if page already exists
+    match_idx = -1
+    for idx, p in enumerate(existing_pages):
+        if isinstance(p, dict) and p.get("pdf_page_number") == page_obj.pdf_page_number:
+            match_idx = idx
+            break
+
+    if match_idx != -1:
+        if not overwrite_existing:
+            return False, "already_exists"
+        existing_pages[match_idx] = page_obj.model_dump()
+        action = "overwritten"
+    else:
+        existing_pages.append(page_obj.model_dump())
+        action = "appended"
+
+    # Sort pages by pdf_page_number
+    existing_pages.sort(key=lambda p: p.get("pdf_page_number", 0))
+
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+    out_p.write_text(
+        json.dumps(existing_pages, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return True, action
 
 
 def _get_image_dimensions(
@@ -1106,6 +1185,33 @@ def _perform_export_ppocr(
 
 # Overwrite confirmation dialog (requires Streamlit >= 1.29 for st.dialog)
 if hasattr(st, "dialog"):
+
+    @st.dialog("⚠️ Overwrite Page in OCR Result")
+    def _confirm_overwrite_page_dialog(
+        output_path: str,
+        page_dict: dict,
+    ) -> None:
+        """Modal dialog to confirm overwriting an existing page in ocr_result.json."""
+        p_num = page_dict.get("pdf_page_number")
+        st.warning(f"Page {p_num} already exists in `{output_path}`.")
+        st.write("Do you want to overwrite this page's entry in the OCR result file?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(
+                "Yes, Overwrite Page", type="primary", use_container_width=True
+            ):
+                page_obj = OCRPage(**page_dict)
+                ok, action = _save_or_update_ocr_page_in_json(
+                    output_path, page_obj, overwrite_existing=True
+                )
+                msg = f"Page {p_num} overwritten in `{output_path}`."
+                st.session_state["save_alert"] = ("success", msg)
+                st.session_state.pop("pending_page_overwrite", None)
+                st.rerun()
+        with col2:
+            if st.button("Cancel", use_container_width=True):
+                st.session_state.pop("pending_page_overwrite", None)
+                st.rerun()
 
     @st.dialog("⚠️ File Already Exists")
     def _confirm_overwrite_dialog(
@@ -1677,6 +1783,34 @@ def main() -> None:
                 st.session_state["show_inline_overwrite_warning"] = False
                 st.rerun()
 
+    # Fallback inline overwrite warning for single page in ocr_result.json
+    if st.session_state.get("show_inline_page_overwrite_warning", False):
+        pending_page_data = st.session_state.get("pending_page_overwrite")
+        if pending_page_data:
+            p_num = pending_page_data.get("pdf_page_number")
+            st.warning(
+                f"Page {p_num} already exists in `{output_path}`. Confirm overwriting this page?"
+            )
+            col_pow1, col_pow2 = st.columns(2)
+            with col_pow1:
+                if st.button("⚠️ Confirm Overwrite Page", type="primary"):
+                    st.session_state["show_inline_page_overwrite_warning"] = False
+                    page_obj = OCRPage(**pending_page_data)
+                    _save_or_update_ocr_page_in_json(
+                        output_path, page_obj, overwrite_existing=True
+                    )
+                    st.session_state["save_alert"] = (
+                        "success",
+                        f"Page {p_num} overwritten in `{output_path}`.",
+                    )
+                    st.session_state.pop("pending_page_overwrite", None)
+                    st.rerun()
+            with col_pow2:
+                if st.button("Cancel Overwrite Page"):
+                    st.session_state["show_inline_page_overwrite_warning"] = False
+                    st.session_state.pop("pending_page_overwrite", None)
+                    st.rerun()
+
     # -----------------------------------------------------------------------
     # Header: page info & navigation controls
     # -----------------------------------------------------------------------
@@ -1842,6 +1976,48 @@ def main() -> None:
         missing_words_by_para,
         missing_paras_by_idx,
     ) = _compute_warnings(current_vlm_text, current_text)
+
+    # -----------------------------------------------------------------------
+    # Image navigation: select box & next prefetch
+    # -----------------------------------------------------------------------
+    def _format_image_option(i: int) -> str:
+        flag = "✅" if confirmed_flags[i] else "🔲"
+        p_num = pages[i] if i < len(pages) else i + 1
+        name = (
+            image_paths[i].name
+            if (image_paths and i < len(image_paths))
+            else f"page_{p_num:03d}"
+        )
+        return f"{flag} Image {i + 1}/{total} (PDF page {p_num}) — {name}"
+
+    def _on_image_select() -> None:
+        selected_i = st.session_state.get("image_selector_box")
+        if selected_i is not None:
+            st.session_state.ocr_current_index = int(selected_i)
+
+    sel_col1, sel_col2, sel_col3 = st.columns([1, 4, 1])
+    with sel_col1:
+        if st.button(
+            "← Previous Image", disabled=(index == 0), key="btn_prev_image_top"
+        ):
+            st.session_state.ocr_current_index = index - 1
+            st.rerun()
+    with sel_col2:
+        st.selectbox(
+            "Select Image to Review",
+            options=list(range(total)),
+            index=index,
+            format_func=_format_image_option,
+            key="image_selector_box",
+            on_change=_on_image_select,
+            label_visibility="collapsed",
+        )
+    with sel_col3:
+        if st.button(
+            "Next Image →", disabled=(index >= total - 1), key="btn_next_image_top"
+        ):
+            st.session_state.ocr_current_index = index + 1
+            st.rerun()
 
     # -----------------------------------------------------------------------
     # Three-column review area
@@ -2038,81 +2214,83 @@ def main() -> None:
                 st.session_state[vlm_key] = vlm_raw_baseline
                 st.rerun()
 
-        # Navigation & confirm
-        nav_prev, nav_confirm, nav_next = st.columns([1, 2, 1])
-
-        with nav_prev:
-            if st.button("← Previous", disabled=(index == 0)):
-                st.session_state.ocr_current_index = index - 1
-                st.rerun()
-
-        with nav_confirm:
-            confirm_label = (
-                "✅ Confirm & Save Page"
-                if not confirmed_flags[index]
-                else "🔄 Re-confirm Page"
-            )
-            if st.button(confirm_label, type="primary"):
-                final_text = st.session_state.get(editor_key, "")
-                # Extract customized bboxes from session state
-                curr_bbox_rows = st.session_state.get(bbox_session_key, [])
-                custom_boxes: list[tuple[int, int, int, int] | None] = []
-                for r in curr_bbox_rows:
-                    if (
-                        r.get("x_min") is not None
-                        and r.get("y_min") is not None
-                        and r.get("x_max") is not None
-                        and r.get("y_max") is not None
-                        and not (
-                            r.get("x_min") == 0
-                            and r.get("y_min") == 0
-                            and r.get("x_max") == 0
-                            and r.get("y_max") == 0
-                        )
-                    ):
-                        custom_boxes.append(
-                            (
-                                int(r["x_min"]),
-                                int(r["y_min"]),
-                                int(r["x_max"]),
-                                int(r["y_max"]),
-                            )
-                        )
-                    else:
-                        custom_boxes.append(None)
-
-                page_obj = _build_ocr_page(
-                    text=final_text,
-                    pdf_page_number=pdf_page,
-                    document_page_number=doc_page,
-                    tess_page=tess_result,
-                    filtered_raw=tess_filtered_raw,
-                    custom_bboxes=custom_boxes if custom_boxes else None,
-                )
-                confirmed_flags[index] = True
-                st.session_state.ocr_confirmed_flags = confirmed_flags
-                st.session_state.ocr_confirmed_pages[index] = page_obj.model_dump()
-
-                # Rewrite staging file with all currently confirmed pages (no duplicate image file writes)
-                try:
-                    _sync_staging_file(
-                        st.session_state.ocr_confirmed_pages, output_path
+        confirm_label = (
+            "✅ Confirm & Save Page"
+            if not confirmed_flags[index]
+            else "🔄 Re-confirm Page"
+        )
+        if st.button(confirm_label, type="primary", width="stretch"):
+            final_text = st.session_state.get(editor_key, "")
+            # Extract customized bboxes from session state
+            curr_bbox_rows = st.session_state.get(bbox_session_key, [])
+            custom_boxes: list[tuple[int, int, int, int] | None] = []
+            for r in curr_bbox_rows:
+                if (
+                    r.get("x_min") is not None
+                    and r.get("y_min") is not None
+                    and r.get("x_max") is not None
+                    and r.get("y_max") is not None
+                    and not (
+                        r.get("x_min") == 0
+                        and r.get("y_min") == 0
+                        and r.get("x_max") == 0
+                        and r.get("y_max") == 0
                     )
-                    st.success(f"Page {index + 1} saved to staging file.")
-                except Exception as e:
-                    st.error(f"Could not write staging file: {e}")
+                ):
+                    custom_boxes.append(
+                        (
+                            int(r["x_min"]),
+                            int(r["y_min"]),
+                            int(r["x_max"]),
+                            int(r["y_max"]),
+                        )
+                    )
+                else:
+                    custom_boxes.append(None)
 
+            page_obj = _build_ocr_page(
+                text=final_text,
+                pdf_page_number=pdf_page,
+                document_page_number=doc_page,
+                tess_page=tess_result,
+                filtered_raw=tess_filtered_raw,
+                custom_bboxes=custom_boxes if custom_boxes else None,
+            )
+            confirmed_flags[index] = True
+            st.session_state.ocr_confirmed_flags = confirmed_flags
+            st.session_state.ocr_confirmed_pages[index] = page_obj.model_dump()
+
+            # Rewrite staging file with all currently confirmed pages (no duplicate image file writes)
+            try:
+                _sync_staging_file(st.session_state.ocr_confirmed_pages, output_path)
+            except Exception as e:
+                st.error(f"Could not write staging file: {e}")
+
+            # Save or update in target output_path (ocr_result.json)
+            saved_ok, action_or_reason = _save_or_update_ocr_page_in_json(
+                output_path=output_path,
+                page_obj=page_obj,
+                overwrite_existing=False,
+            )
+
+            if not saved_ok and action_or_reason == "already_exists":
+                st.session_state["pending_page_overwrite"] = page_obj.model_dump()
+                if hasattr(st, "dialog"):
+                    _confirm_overwrite_page_dialog(
+                        output_path=output_path,
+                        page_dict=page_obj.model_dump(),
+                    )
+                else:
+                    st.session_state["show_inline_page_overwrite_warning"] = True
+                    st.rerun()
+            else:
+                st.session_state["save_alert"] = (
+                    "success",
+                    f"Page {pdf_page} saved ({action_or_reason}) to `{output_path}`.",
+                )
                 # Auto-advance if not last
                 if index < total - 1:
                     st.session_state.ocr_current_index = index + 1
-                    st.rerun()
-                else:
-                    st.rerun()
-
-        with nav_next:
-            next_disabled = not confirmed_flags[index] or index >= total - 1
-            if st.button("Next →", disabled=next_disabled):
-                st.session_state.ocr_current_index = index + 1
                 st.rerun()
 
     # -----------------------------------------------------------------------

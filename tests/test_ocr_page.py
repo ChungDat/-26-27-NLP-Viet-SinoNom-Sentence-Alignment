@@ -148,6 +148,9 @@ _render_highlighted_text = _page_mod._render_highlighted_text
 _staging_path = _page_mod._staging_path
 _sync_staging_file = _page_mod._sync_staging_file
 _load_staging = _page_mod._load_staging
+_save_or_update_ocr_page_in_json = getattr(
+    _page_mod, "_save_or_update_ocr_page_in_json", None
+)
 
 # ---------------------------------------------------------------------------
 # Levenshtein availability flag (pure-Python fallback built into 3_ocr_image)
@@ -753,6 +756,112 @@ class TestCustomBoundingBoxes(unittest.TestCase):
         self.assertEqual(synced[0]["x_max"], 100)
         self.assertEqual(synced[0]["y_max"], 200)
         self.assertEqual(synced[1]["Paragraph"], "P2")
+
+
+class TestSaveOrUpdateOCRPageInJSON(unittest.TestCase):
+    """Tests for _save_or_update_ocr_page_in_json."""
+
+    def test_creates_new_file_and_appends(self):
+        page = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="Page 20 text")],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = str(Path(tmpdir) / "ocr_result.json")
+            ok, action = _save_or_update_ocr_page_in_json(out_file, page)
+            self.assertTrue(ok)
+            self.assertEqual(action, "appended")
+
+            data = json.loads(Path(out_file).read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["pdf_page_number"], 20)
+            self.assertEqual(data[0]["paragraphs"][0]["text"], "Page 20 text")
+
+    def test_appends_new_page_and_keeps_sorted(self):
+        page20 = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="Page 20")],
+        )
+        page10 = OCRPage(
+            pdf_page_number=10,
+            document_page_number=10,
+            page_name="010",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="Page 10")],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = str(Path(tmpdir) / "ocr_result.json")
+            _save_or_update_ocr_page_in_json(out_file, page20)
+            ok, action = _save_or_update_ocr_page_in_json(out_file, page10)
+            self.assertTrue(ok)
+            self.assertEqual(action, "appended")
+
+            data = json.loads(Path(out_file).read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 2)
+            self.assertEqual(data[0]["pdf_page_number"], 10)
+            self.assertEqual(data[1]["pdf_page_number"], 20)
+
+    def test_existing_page_without_overwrite_flag_returns_already_exists(self):
+        page20 = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="Old 20")],
+        )
+        updated20 = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="New 20")],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = str(Path(tmpdir) / "ocr_result.json")
+            _save_or_update_ocr_page_in_json(out_file, page20)
+            ok, action = _save_or_update_ocr_page_in_json(
+                out_file, updated20, overwrite_existing=False
+            )
+            self.assertFalse(ok)
+            self.assertEqual(action, "already_exists")
+
+            # Check content was NOT changed
+            data = json.loads(Path(out_file).read_text(encoding="utf-8"))
+            self.assertEqual(data[0]["paragraphs"][0]["text"], "Old 20")
+
+    def test_existing_page_with_overwrite_flag_updates_entry(self):
+        page20 = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="Old 20")],
+        )
+        updated20 = OCRPage(
+            pdf_page_number=20,
+            document_page_number=20,
+            page_name="020",
+            method="reviewed",
+            paragraphs=[OCRParagraph(paragraph_id=1, text="New 20")],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = str(Path(tmpdir) / "ocr_result.json")
+            _save_or_update_ocr_page_in_json(out_file, page20)
+            ok, action = _save_or_update_ocr_page_in_json(
+                out_file, updated20, overwrite_existing=True
+            )
+            self.assertTrue(ok)
+            self.assertEqual(action, "overwritten")
+
+            data = json.loads(Path(out_file).read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["paragraphs"][0]["text"], "New 20")
 
 
 # ---------------------------------------------------------------------------
