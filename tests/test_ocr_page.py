@@ -89,9 +89,9 @@ for _p in [str(_PROJECT_ROOT), str(_SRC_ROOT)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-# We need OCRPage / OCRParagraph / OCRWord from src.ocr_viet.
+# We need OCRPage / OCRParagraph from src.ocr_viet.
 # That module also imports cv2/numpy/ollama/pytesseract but we've mocked them.
-from src.ocr_viet import OCRPage, OCRParagraph, OCRWord  # noqa: E402
+from src.ocr_viet import OCRPage, OCRParagraph  # noqa: E402
 
 # The page module uses a relative import `from ..ocr_viet import ...` which
 # fails when loaded outside a package.  The fallback branch does
@@ -139,6 +139,9 @@ _page_spec.loader.exec_module(_page_mod)  # type: ignore[union-attr]
 # Grab the pure-logic functions we want to test.
 _split_paragraphs = _page_mod._split_paragraphs
 _build_ocr_page = _page_mod._build_ocr_page
+_compute_default_paragraph_bboxes = getattr(_page_mod, "_compute_default_paragraph_bboxes", None)
+_sync_paragraph_bboxes = getattr(_page_mod, "_sync_paragraph_bboxes", None)
+_draw_paragraph_bboxes = getattr(_page_mod, "_draw_paragraph_bboxes", None)
 _align_paragraph_words = _page_mod._align_paragraph_words
 _compute_warnings = _page_mod._compute_warnings
 _render_highlighted_text = _page_mod._render_highlighted_text
@@ -243,13 +246,12 @@ class TestBuildOcrPage(unittest.TestCase):
     """Tests for _build_ocr_page(text, pdf_page_number, document_page_number)."""
 
     def test_single_paragraph_words(self):
-        """Single-paragraph text produces one OCRParagraph with correct words."""
+        """Single-paragraph text produces one OCRParagraph."""
         page = _build_ocr_page("Hello world", 1, 1)
         self.assertIsInstance(page, OCRPage)
         self.assertEqual(len(page.paragraphs), 1)
         para = page.paragraphs[0]
         self.assertEqual(para.text, "Hello world")
-        self.assertEqual([w.text for w in para.words], ["Hello", "world"])
 
     def test_multiple_paragraphs(self):
         """Multi-paragraph text produces one OCRParagraph per paragraph."""
@@ -287,12 +289,18 @@ class TestBuildOcrPage(unittest.TestCase):
         ids = [p.paragraph_id for p in page.paragraphs]
         self.assertEqual(ids, [1, 2, 3])
 
-    def test_words_have_no_bbox_or_confidence(self):
-        """Words built from plain text have bbox=None and confidence=None."""
-        page = _build_ocr_page("Hello world", 1, 1)
-        word = page.paragraphs[0].words[0]
-        self.assertIsNone(word.bbox)
-        self.assertIsNone(word.confidence)
+    def test_paragraph_bbox_matching_tess_page(self):
+        """Paragraph bboxes are inherited from Tesseract OCRPage when counts match."""
+        tess_para = OCRParagraph(paragraph_id=1, bbox=(10, 20, 100, 50), text="Hello world")
+        tess_page = OCRPage(
+            pdf_page_number=1,
+            document_page_number=1,
+            page_name="001",
+            method="tesseract",
+            paragraphs=[tess_para],
+        )
+        page = _build_ocr_page("Hello world edited", 1, 1, tess_page=tess_page)
+        self.assertEqual(page.paragraphs[0].bbox, (10, 20, 100, 50))
 
 
 # ===========================================================================
@@ -475,7 +483,6 @@ class TestComputeWarnings(unittest.TestCase):
         para = OCRParagraph(
             paragraph_id=1,
             text="Hello world",
-            words=[OCRWord(text="Hello"), OCRWord(text="world")],
         )
         page = OCRPage(
             pdf_page_number=1,
@@ -619,7 +626,6 @@ class TestStagingHelpers(unittest.TestCase):
         para = OCRParagraph(
             paragraph_id=1,
             text="Roundtrip text",
-            words=[OCRWord(text="Roundtrip"), OCRWord(text="text")],
         )
         page = OCRPage(
             pdf_page_number=1,
@@ -652,7 +658,6 @@ class TestStagingHelpers(unittest.TestCase):
         para = OCRParagraph(
             paragraph_id=1,
             text="Hello",
-            words=[OCRWord(text="Hello")],
         )
         page = OCRPage(
             pdf_page_number=2,
@@ -683,7 +688,6 @@ class TestStagingHelpers(unittest.TestCase):
                     OCRParagraph(
                         paragraph_id=1,
                         text=f"Text for page {n}",
-                        words=[OCRWord(text=w) for w in f"Text for page {n}".split()],
                     )
                 ],
             )
@@ -703,7 +707,6 @@ class TestStagingHelpers(unittest.TestCase):
         para = OCRParagraph(
             paragraph_id=1,
             text="Test",
-            words=[OCRWord(text="Test")],
         )
         page = OCRPage(
             pdf_page_number=1,
@@ -720,6 +723,36 @@ class TestStagingHelpers(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             parsed = json.loads(lines[0])
             self.assertEqual(parsed["pdf_page_number"], 1)
+
+
+class TestCustomBoundingBoxes(unittest.TestCase):
+    """Tests for manual bounding box synchronization and assignment."""
+
+    def test_build_ocr_page_with_custom_bboxes(self):
+        text = "Paragraph one.\n\nParagraph two."
+        custom_boxes = [(10, 20, 100, 200), (30, 40, 150, 250)]
+        page = _build_ocr_page(
+            text=text,
+            pdf_page_number=1,
+            document_page_number=1,
+            custom_bboxes=custom_boxes,
+        )
+        self.assertEqual(len(page.paragraphs), 2)
+        self.assertEqual(page.paragraphs[0].bbox, (10, 20, 100, 200))
+        self.assertEqual(page.paragraphs[1].bbox, (30, 40, 150, 250))
+
+    def test_sync_paragraph_bboxes_preserves_existing_and_adds_new(self):
+        existing_boxes = [
+            {"Paragraph": "P1", "x_min": 10, "y_min": 20, "x_max": 100, "y_max": 200, "Preview": "First"}
+        ]
+        reviewed_paragraphs = ["First paragraph", "Second paragraph split"]
+        synced = _sync_paragraph_bboxes(existing_boxes, reviewed_paragraphs)
+        self.assertEqual(len(synced), 2)
+        self.assertEqual(synced[0]["x_min"], 10)
+        self.assertEqual(synced[0]["y_min"], 20)
+        self.assertEqual(synced[0]["x_max"], 100)
+        self.assertEqual(synced[0]["y_max"], 200)
+        self.assertEqual(synced[1]["Paragraph"], "P2")
 
 
 # ---------------------------------------------------------------------------

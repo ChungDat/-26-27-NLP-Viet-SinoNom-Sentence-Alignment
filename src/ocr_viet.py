@@ -16,17 +16,13 @@ from PIL import Image, ImageDraw, ImageFont
 
 try:
     from .schemas import (
-        OCRDocument,
         OCRPage,
         OCRParagraph,
-        OCRWord,
     )
 except ImportError:
-    from schemas import (
-        OCRDocument,
+    from schemas import (  # type: ignore[no-redef]
         OCRPage,
         OCRParagraph,
-        OCRWord,
     )
 
 TesseractData = dict[str, list[Any]]
@@ -326,9 +322,10 @@ class TesseractOCR:
         # Tesseract's word sequence is already in reading order. Its line
         # numbers are intentionally ignored because line wraps are not model
         # boundaries.
-        block_paragraph_words: dict[int, dict[int, list[OCRWord]]] = defaultdict(
-            lambda: defaultdict(list)
-        )
+        # Store words as plain (text, bbox) tuples — not persisted long-term.
+        block_paragraph_words: dict[
+            int, dict[int, list[tuple[str, tuple[int, int, int, int]]]]
+        ] = defaultdict(lambda: defaultdict(list))
 
         n = len(raw.get("text", []))
         for i in range(n):
@@ -348,35 +345,38 @@ class TesseractOCR:
             height = int(raw["height"][i])
             block = int(raw["block_num"][i])
             par = int(raw["par_num"][i])
-            word = OCRWord(
-                text=text,
-                bbox=(left, top, left + width, top + height),
-                confidence=conf,
+            block_paragraph_words[block][par].append(
+                (text, (left, top, left + width, top + height))
             )
-            block_paragraph_words[block][par].append(word)
 
         # Build paragraph groups within native Tesseract blocks.
         blocks: list[list[OCRParagraph]] = []
         para_id = 1
+        all_word_heights: list[int] = []
         for block_num in sorted(block_paragraph_words):
             paragraphs: list[OCRParagraph] = []
             for par_num in sorted(block_paragraph_words[block_num]):
-                words = block_paragraph_words[block_num][par_num]
-                para_bbox = _union_bbox(
-                    [word.bbox for word in words if word.bbox is not None]
-                )
+                word_tuples = block_paragraph_words[block_num][par_num]
+                all_word_heights.extend(bbox[3] - bbox[1] for _, bbox in word_tuples)
+                para_bbox = _union_bbox([bbox for _, bbox in word_tuples])
                 paragraphs.append(
                     OCRParagraph(
                         paragraph_id=para_id,
                         bbox=para_bbox,
-                        text=" ".join(word.text for word in words),
-                        words=words,
+                        text=" ".join(text for text, _ in word_tuples),
                     )
                 )
                 para_id += 1
             blocks.append(paragraphs)
 
-        merged = self._merge_paragraphs(blocks)
+        if len(all_word_heights) >= 2:
+            median_word_height = float(statistics.median(all_word_heights))
+        elif all_word_heights:
+            median_word_height = float(all_word_heights[0])
+        else:
+            median_word_height = None
+
+        merged = self._merge_paragraphs(blocks, median_word_height=median_word_height)
 
         return OCRPage(
             pdf_page_number=pdf_page_number,
@@ -389,6 +389,7 @@ class TesseractOCR:
     def _merge_paragraphs(
         self,
         blocks: list[list[OCRParagraph]],
+        median_word_height: float | None = None,
     ) -> list[OCRParagraph]:
         """Merge nearby blocks, then nearby paragraphs within each block.
 
@@ -398,6 +399,7 @@ class TesseractOCR:
 
         Args:
             blocks: Paragraph groups organized by their original Tesseract block number.
+            median_word_height: Median height of all word bounding boxes on the page. If omitted or None, falls back to paragraph heights.
 
         Returns:
             A flat list of paragraphs after both merge passes.
@@ -406,19 +408,20 @@ class TesseractOCR:
         if not non_empty_blocks:
             return []
 
-        all_heights = [
-            word.bbox[3] - word.bbox[1]
-            for block in non_empty_blocks
-            for para in block
-            for word in para.words
-            if word.bbox is not None
-        ]
-        if len(all_heights) >= 2:
-            median_word_height = statistics.median(all_heights)
-        elif all_heights:
-            median_word_height = all_heights[0]
-        else:
-            return [para for block in non_empty_blocks for para in block]
+        if median_word_height is None:
+            all_heights = [
+                bbox[3] - bbox[1]
+                for block in non_empty_blocks
+                for para in block
+                if para.bbox is not None
+                for bbox in [para.bbox]
+            ]
+            if len(all_heights) >= 2:
+                median_word_height = float(statistics.median(all_heights))
+            elif all_heights:
+                median_word_height = float(all_heights[0])
+            else:
+                return [para for block in non_empty_blocks for para in block]
 
         gap_threshold = self.gap_ratio * median_word_height
 
@@ -473,7 +476,6 @@ class TesseractOCR:
                 )
 
                 if gap < gap_threshold:
-                    combined_words = current.words + next_para.words
                     combined_bbox = (
                         _union_bbox([current_bbox, next_bbox])
                         if current_bbox is not None and next_bbox is not None
@@ -482,8 +484,7 @@ class TesseractOCR:
                     current = OCRParagraph(
                         paragraph_id=current.paragraph_id,
                         bbox=combined_bbox,
-                        text=" ".join(word.text for word in combined_words),
-                        words=combined_words,
+                        text=" ".join([current.text, next_para.text]),
                     )
                 else:
                     merged_paragraphs.append(current)
@@ -640,6 +641,51 @@ class TesseractOCR:
                 font=font,
                 fill=color,
             )
+
+        return pil_image
+
+    def annotate_paragraphs(
+        self,
+        box_width: int = 2,
+        color: tuple[int, int, int] = (0, 255, 0),
+        font_size: int = 20,
+    ) -> Image.Image:
+        """Draw paragraph-level bounding boxes on an image.
+
+        Args:
+            box_width: Thickness of bounding box borders.
+            color: RGB tuple for paragraph bounding boxes. Defaults to green.
+            font_size: Font size for paragraph ID labels.
+
+        Returns:
+            Annotated PIL Image.
+
+        Raises:
+            RuntimeError: If :meth:`run` has not been called yet.
+        """
+        self._require_run()
+        assert self._image is not None
+        assert self._page is not None
+
+        pil_image = to_pil_image(self._image).copy()
+        draw = ImageDraw.Draw(pil_image)
+
+        try:
+            font_path = Path(__file__).parent.parent / "fonts" / "NotoSans-Regular.ttf"
+            font = ImageFont.truetype(font_path, font_size)
+        except OSError:
+            font = ImageFont.load_default(font_size)
+
+        for p in self._page.paragraphs:
+            if p.bbox is not None:
+                x0, y0, x1, y1 = p.bbox
+                draw.rectangle((x0, y0, x1, y1), outline=color, width=box_width)
+                draw.text(
+                    (x0, max(y0 - font_size - 4, 0)),
+                    f"P{p.paragraph_id}",
+                    font=font,
+                    fill=color,
+                )
 
         return pil_image
 
@@ -914,17 +960,11 @@ class VLMOCR:
         ]
 
         for p_idx, p_text in enumerate(raw_paragraphs, start=1):
-            words = [
-                OCRWord(text=word_text, bbox=None, confidence=None)
-                for word_text in p_text.split()
-            ]
-
             paragraphs.append(
                 OCRParagraph(
                     paragraph_id=p_idx,
                     bbox=None,
-                    text=" ".join(word.text for word in words),
-                    words=words,
+                    text=" ".join(p_text.split()),
                 )
             )
 
@@ -989,7 +1029,7 @@ def main() -> None:
     ocr_configs = ["--psm 3", "--psm 6"]
     source_directory = Path("Dong_hang/test")
     destination_directory = Path("Dong_hang/test")
-    image_file_name = Path("0015.png")
+    image_file_name = Path("T1_Sách Truyện Các Thánh (Tháng 1).021.jpg")
     image_path = source_directory / image_file_name
 
     # 1. Run Tesseract OCR
@@ -998,8 +1038,8 @@ def main() -> None:
     try:
         tess_page = tesseract_ocr.run(
             image_path,
-            pdf_page_number=15,
-            document_page_number=15,
+            pdf_page_number=21,
+            document_page_number=21,
             page_name=image_file_name,
             config=ocr_configs[0],
         )
@@ -1013,7 +1053,7 @@ def main() -> None:
             destination_directory, image_file_name.stem + "_tesseract.json"
         )
 
-        tess_word_count = sum(len(p.words) for p in tess_page.paragraphs)
+        tess_word_count = sum(len(p.text.split()) for p in tess_page.paragraphs)
         print(
             f"[Tesseract] Extracted {tess_word_count} word(s) "
             f"across {len(tess_page.paragraphs)} paragraph(s)."
@@ -1021,31 +1061,31 @@ def main() -> None:
     except Exception as exc:
         print(f"[Tesseract] Failed: {exc}")
 
-    # 2. Run VLM OCR
-    print("\n--- Running VLMOCR ---")
-    vlm_ocr = VLMOCR()
-    try:
-        vlm_page = vlm_ocr.run(
-            image_path,
-            pdf_page_number=15,
-            document_page_number=15,
-            page_name=image_file_name,
-        )
-        vlm_ocr.save_text(destination_directory, image_file_name.stem + "_vlm.txt")
-        vlm_ocr.save_json(destination_directory, image_file_name.stem + "_vlm.json")
+    # # 2. Run VLM OCR
+    # print("\n--- Running VLMOCR ---")
+    # vlm_ocr = VLMOCR()
+    # try:
+    #     vlm_page = vlm_ocr.run(
+    #         image_path,
+    #         pdf_page_number=15,
+    #         document_page_number=15,
+    #         page_name=image_file_name,
+    #     )
+    #     vlm_ocr.save_text(destination_directory, image_file_name.stem + "_vlm.txt")
+    #     vlm_ocr.save_json(destination_directory, image_file_name.stem + "_vlm.json")
 
-        vlm_word_count = sum(len(p.words) for p in vlm_page.paragraphs)
-        print(
-            f"[VLM] Extracted {vlm_word_count} word(s) "
-            f"across {len(vlm_page.paragraphs)} paragraph(s)."
-        )
-        if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
-            print(
-                f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
-                f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
-            )
-    except Exception as exc:
-        print(f"[VLM] Failed: {exc}")
+    #     vlm_word_count = sum(len(p.text.split()) for p in vlm_page.paragraphs)
+    #     print(
+    #         f"[VLM] Extracted {vlm_word_count} word(s) "
+    #         f"across {len(vlm_page.paragraphs)} paragraph(s)."
+    #     )
+    #     if vlm_ocr.raw_response and hasattr(vlm_ocr.raw_response, "eval_count"):
+    #         print(
+    #             f"[VLM] Prompt tokens: {vlm_ocr.raw_response.prompt_eval_count}, "
+    #             f"Generated tokens: {vlm_ocr.raw_response.eval_count}"
+    #         )
+    # except Exception as exc:
+    #     print(f"[VLM] Failed: {exc}")
 
 
 if __name__ == "__main__":

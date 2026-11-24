@@ -24,20 +24,33 @@ except ImportError:
 try:
     from ..ocr_viet import (
         VLMOCR,
-        OCRDocument,
         OCRPage,
         OCRParagraph,
-        OCRWord,
         TesseractOCR,
     )
 except ImportError:
     from ocr_viet import (  # type: ignore[no-redef]
         VLMOCR,
-        OCRDocument,
         OCRPage,
         OCRParagraph,
-        OCRWord,
         TesseractOCR,
+    )
+
+try:
+    from ..ppocr import (
+        PPOCRLabelPage,
+        make_image_path,
+        ocr_page_to_ppocr,
+        write_file_state_txt,
+        write_label_txt,
+    )
+except ImportError:
+    from ppocr import (  # type: ignore[no-redef]
+        PPOCRLabelPage,
+        make_image_path,
+        ocr_page_to_ppocr,
+        write_file_state_txt,
+        write_label_txt,
     )
 
 try:
@@ -112,32 +125,308 @@ def _split_paragraphs(text: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
 
 
+def _draw_paragraph_bboxes(
+    image: np.ndarray | Image.Image,
+    paragraphs: list[OCRParagraph],
+    box_width: int = 2,
+    color: tuple[int, int, int] = (0, 255, 0),
+    font_size: int = 20,
+) -> Image.Image:
+    """Draw paragraph-level bounding boxes and labels on an image."""
+    from PIL import ImageDraw, ImageFont
+
+    pil_image = _image_to_pil(image).copy()
+    draw = ImageDraw.Draw(pil_image)
+
+    try:
+        font_path = Path(__file__).parent.parent / "fonts" / "NotoSans-Regular.ttf"
+        font = ImageFont.truetype(str(font_path), font_size)
+    except OSError:
+        font = ImageFont.load_default(font_size)
+
+    for p in paragraphs:
+        if p.bbox is not None:
+            x0, y0, x1, y1 = p.bbox
+            draw.rectangle((x0, y0, x1, y1), outline=color, width=box_width)
+            draw.text(
+                (x0, max(y0 - font_size - 4, 0)),
+                f"P{p.paragraph_id}",
+                font=font,
+                fill=color,
+            )
+
+    return pil_image
+
+
+def _compute_default_paragraph_bboxes(
+    reviewed_paragraphs: list[str],
+    tess_page: OCRPage | None = None,
+    filtered_raw: dict | None = None,
+) -> list[tuple[int, int, int, int] | None]:
+    """Calculate default bounding boxes for reviewed paragraphs."""
+    if not reviewed_paragraphs:
+        return []
+
+    # Case 1: Paragraph counts match
+    if (
+        tess_page is not None
+        and tess_page.paragraphs
+        and len(reviewed_paragraphs) == len(tess_page.paragraphs)
+    ):
+        return [p.bbox for p in tess_page.paragraphs]
+
+    # Case 2: Paragraph counts differ — compute paragraph bounding box from word bboxes
+    word_boxes: list[tuple[str, tuple[int, int, int, int]]] = []
+    if filtered_raw:
+        raw_texts = filtered_raw.get("text", [])
+        raw_lefts = filtered_raw.get("left", [])
+        raw_tops = filtered_raw.get("top", [])
+        raw_widths = filtered_raw.get("width", [])
+        raw_heights = filtered_raw.get("height", [])
+        for i in range(len(raw_texts)):
+            w_text = str(raw_texts[i]).strip()
+            if not w_text:
+                continue
+            try:
+                l, t, w, h = (
+                    int(raw_lefts[i]),
+                    int(raw_tops[i]),
+                    int(raw_widths[i]),
+                    int(raw_heights[i]),
+                )
+                if w > 0 and h > 0:
+                    word_boxes.append((w_text, (l, t, l + w, t + h)))
+            except (IndexError, TypeError, ValueError):
+                continue
+
+    word_idx = 0
+    total_words = len(word_boxes)
+    bboxes: list[tuple[int, int, int, int] | None] = []
+
+    for idx, para_text in enumerate(reviewed_paragraphs, start=1):
+        para_words = para_text.split()
+        matched_boxes: list[tuple[int, int, int, int]] = []
+
+        start_w = word_idx
+        for pw in para_words:
+            found = False
+            for look in range(word_idx, min(word_idx + 10, total_words)):
+                if (
+                    word_boxes[look][0] == pw
+                    or word_boxes[look][0] in pw
+                    or pw in word_boxes[look][0]
+                ):
+                    matched_boxes.append(word_boxes[look][1])
+                    word_idx = look + 1
+                    found = True
+                    break
+
+        if matched_boxes:
+            x_min = min(b[0] for b in matched_boxes)
+            y_min = min(b[1] for b in matched_boxes)
+            x_max = max(b[2] for b in matched_boxes)
+            y_max = max(b[3] for b in matched_boxes)
+            bboxes.append((x_min, y_min, x_max, y_max))
+        elif (
+            tess_page and tess_page.paragraphs and (idx - 1) < len(tess_page.paragraphs)
+        ):
+            bboxes.append(tess_page.paragraphs[idx - 1].bbox)
+        else:
+            bboxes.append(None)
+
+    return bboxes
+
+
+def _sync_paragraph_bboxes(
+    current_bboxes: list[dict],
+    reviewed_paragraphs: list[str],
+    tess_page: OCRPage | None = None,
+    filtered_raw: dict | None = None,
+) -> list[dict]:
+    """Synchronize paragraph bounding box rows with reviewed paragraphs."""
+    computed_defaults = _compute_default_paragraph_bboxes(
+        reviewed_paragraphs, tess_page=tess_page, filtered_raw=filtered_raw
+    )
+    synced: list[dict] = []
+
+    for i, para_text in enumerate(reviewed_paragraphs):
+        preview = para_text[:40] + ("..." if len(para_text) > 40 else "")
+        para_id = i + 1
+
+        # Reuse existing values if present
+        if i < len(current_bboxes):
+            existing = current_bboxes[i]
+            synced.append(
+                {
+                    "Paragraph": f"P{para_id}",
+                    "x_min": existing.get("x_min"),
+                    "y_min": existing.get("y_min"),
+                    "x_max": existing.get("x_max"),
+                    "y_max": existing.get("y_max"),
+                    "Preview": preview,
+                }
+            )
+        else:
+            # New paragraph from line break split
+            def_box = computed_defaults[i] if i < len(computed_defaults) else None
+            synced.append(
+                {
+                    "Paragraph": f"P{para_id}",
+                    "x_min": def_box[0] if def_box else 0,
+                    "y_min": def_box[1] if def_box else 0,
+                    "x_max": def_box[2] if def_box else 0,
+                    "y_max": def_box[3] if def_box else 0,
+                    "Preview": preview,
+                }
+            )
+
+    return synced
+
+
 def _build_ocr_page(
     text: str,
     pdf_page_number: int,
     document_page_number: int,
+    tess_page: OCRPage | None = None,
+    filtered_raw: dict | None = None,
+    custom_bboxes: list[tuple[int, int, int, int] | None] | None = None,
 ) -> OCRPage:
     """Build a reviewed OCRPage from plain editor text.
+
+    Assigns bounding boxes to paragraphs by:
+    1. If the reviewed paragraph count matches the Tesseract paragraph count,
+       directly reusing each Tesseract paragraph's bounding box.
+    2. Otherwise, using Tesseract word/line bounding boxes from ``filtered_raw``
+       to find matching words for the reviewed paragraph text and unioning their
+       bounding boxes.
+    3. Falling back to the closest Tesseract paragraph bbox, or None.
 
     Args:
         text: Editor text with blank-line paragraph separators.
         pdf_page_number: 1-indexed PDF reader page number.
         document_page_number: Actual document page number after offset.
+        tess_page: Optional Tesseract OCRPage result for this page.
+        filtered_raw: Optional Tesseract raw output dict (with left, top, width, height, text).
 
     Returns:
         An OCRPage with method="reviewed".
     """
+    reviewed_paragraphs = _split_paragraphs(text)
     paragraphs: list[OCRParagraph] = []
-    for idx, para_text in enumerate(_split_paragraphs(text), start=1):
-        words = [OCRWord(text=w, bbox=None, confidence=None) for w in para_text.split()]
+
+    if custom_bboxes is not None and len(custom_bboxes) == len(reviewed_paragraphs):
+        for idx, (para_text, bbox) in enumerate(
+            zip(reviewed_paragraphs, custom_bboxes), start=1
+        ):
+            paragraphs.append(
+                OCRParagraph(
+                    paragraph_id=idx,
+                    bbox=bbox,
+                    text=para_text,
+                )
+            )
+        return OCRPage(
+            pdf_page_number=pdf_page_number,
+            document_page_number=document_page_number,
+            page_name=f"{pdf_page_number:03d}",
+            method="reviewed",
+            paragraphs=paragraphs,
+        )
+
+    # Case 1: Paragraph counts match
+    if (
+        tess_page is not None
+        and tess_page.paragraphs
+        and len(reviewed_paragraphs) == len(tess_page.paragraphs)
+    ):
+        for idx, para_text in enumerate(reviewed_paragraphs, start=1):
+            tess_p = tess_page.paragraphs[idx - 1]
+            paragraphs.append(
+                OCRParagraph(
+                    paragraph_id=idx,
+                    bbox=tess_p.bbox,
+                    text=para_text,
+                )
+            )
+        return OCRPage(
+            pdf_page_number=pdf_page_number,
+            document_page_number=document_page_number,
+            page_name=f"{pdf_page_number:03d}",
+            method="reviewed",
+            paragraphs=paragraphs,
+        )
+
+    # Case 2: Paragraph counts differ — compute paragraph bounding box from word bboxes
+    word_boxes: list[tuple[str, tuple[int, int, int, int]]] = []
+    if filtered_raw:
+        raw_texts = filtered_raw.get("text", [])
+        raw_lefts = filtered_raw.get("left", [])
+        raw_tops = filtered_raw.get("top", [])
+        raw_widths = filtered_raw.get("width", [])
+        raw_heights = filtered_raw.get("height", [])
+        for i in range(len(raw_texts)):
+            w_text = str(raw_texts[i]).strip()
+            if not w_text:
+                continue
+            try:
+                l, t, w, h = (
+                    int(raw_lefts[i]),
+                    int(raw_tops[i]),
+                    int(raw_widths[i]),
+                    int(raw_heights[i]),
+                )
+                if w > 0 and h > 0:
+                    word_boxes.append((w_text, (l, t, l + w, t + h)))
+            except (IndexError, TypeError, ValueError):
+                continue
+
+    word_idx = 0
+    total_words = len(word_boxes)
+
+    for idx, para_text in enumerate(reviewed_paragraphs, start=1):
+        para_words = para_text.split()
+        matched_boxes: list[tuple[int, int, int, int]] = []
+
+        # Consume matching or consecutive words in reading order
+        start_w = word_idx
+        for pw in para_words:
+            # Look ahead a small window for the word
+            found = False
+            for look in range(word_idx, min(word_idx + 10, total_words)):
+                if (
+                    word_boxes[look][0] == pw
+                    or word_boxes[look][0] in pw
+                    or pw in word_boxes[look][0]
+                ):
+                    matched_boxes.append(word_boxes[look][1])
+                    word_idx = look + 1
+                    found = True
+                    break
+            if not found and word_idx < total_words:
+                # If exact word not found, still include current position's bbox if within reasonable count
+                pass
+
+        if matched_boxes:
+            x_min = min(b[0] for b in matched_boxes)
+            y_min = min(b[1] for b in matched_boxes)
+            x_max = max(b[2] for b in matched_boxes)
+            y_max = max(b[3] for b in matched_boxes)
+            p_bbox = (x_min, y_min, x_max, y_max)
+        elif (
+            tess_page and tess_page.paragraphs and (idx - 1) < len(tess_page.paragraphs)
+        ):
+            p_bbox = tess_page.paragraphs[idx - 1].bbox
+        else:
+            p_bbox = None
+
         paragraphs.append(
             OCRParagraph(
                 paragraph_id=idx,
-                bbox=None,
-                text=" ".join(w.text for w in words),
-                words=words,
+                bbox=p_bbox,
+                text=para_text,
             )
         )
+
     return OCRPage(
         pdf_page_number=pdf_page_number,
         document_page_number=document_page_number,
@@ -168,7 +457,13 @@ def _clear_ocr_session_state() -> None:
         st.session_state.pop(key, None)
     for key in list(st.session_state.keys()):
         if key.startswith(
-            ("ocr_editor_widget_", "ocr_vlm_widget_", "image_view_mode_")
+            (
+                "ocr_editor_widget_",
+                "ocr_vlm_widget_",
+                "image_view_mode_",
+                "ocr_bbox_list_",
+                "ocr_bbox_editor_",
+            )
         ):
             del st.session_state[key]
     with _PREFETCH_LOCK:
@@ -729,40 +1024,84 @@ def _perform_save_document(
     sample_image_path: Path | str | None = None,
     images: list[np.ndarray] | None = None,
 ) -> tuple[int, Path]:
-    """Write confirmed pages to an OCRDocument JSON file.
+    """Write confirmed pages to an intermediate OCRPage list JSON file.
 
+    The file contains a JSON array of :class:`OCRPage` model dicts, which can
+    be reloaded with ``[OCRPage(**p) for p in json.loads(text)]``.
     The staging file is also synced after writing.
 
     Args:
-        output_path: Destination path for the OCRDocument JSON.
-        source_name: Source PDF filename recorded in the document.
-        language: Document language code (e.g. "vie").
-        sample_image_path: Path to an extracted image file (to read dimensions).
-        images: Original extracted images (fallback to read dimensions).
+        output_path: Destination path for the intermediate pages JSON.
+        source_name: Source PDF filename (unused; kept for API compatibility).
+        language: Document language code (unused; kept for API compatibility).
+        sample_image_path: Unused; kept for API compatibility.
+        images: Unused; kept for API compatibility.
 
     Returns:
         A 2-tuple of (n_saved_pages, out_path).
     """
     confirmed_pages_raw = st.session_state.get("ocr_confirmed_pages", [])
     confirmed_page_objs = [OCRPage(**p) for p in confirmed_pages_raw if p is not None]
-    h, w = _get_image_dimensions(sample_image_path, images)
-    doc = OCRDocument(
-        source=source_name,
-        language=language,
-        page_count=len(confirmed_page_objs),
-        width=int(w) if w is not None else None,
-        height=int(h) if h is not None else None,
-        pages=confirmed_page_objs,
-    )
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(doc.model_dump_json(indent=2), encoding="utf-8")
+    pages_data = [p.model_dump() for p in confirmed_page_objs]
+    out_path.write_text(
+        json.dumps(pages_data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     # Sync staging file
     _sync_staging_file(confirmed_pages_raw, output_path)
 
     return len(confirmed_page_objs), out_path
+
+
+def _perform_export_ppocr(
+    export_dir: str,
+    document_name: str,
+    language: str,
+    overwrite: bool = False,
+) -> tuple[int, Path, Path]:
+    """Export confirmed pages as PPOCRLabel Label.txt and fileState.txt.
+
+    Image paths are built using :func:`make_image_path` from document metadata
+    stored in session state.  The ``align_to`` field on each annotation is set
+    to the page's ``document_page_number``.
+
+    Args:
+        export_dir: Directory in which to write ``Label.txt`` and
+            ``fileState.txt``.
+        document_name: Document stem (from ``st.session_state.document_name``).
+        language: Language folder (from ``st.session_state.document_language``).
+        overwrite: When ``True`` existing output files are overwritten without
+            prompting.
+
+    Returns:
+        A 3-tuple of ``(n_pages, label_path, state_path)``.
+
+    Raises:
+        FileExistsError: If either output file exists and *overwrite* is
+            ``False``.
+    """
+    confirmed_pages_raw = st.session_state.get("ocr_confirmed_pages", [])
+    confirmed_page_objs = [OCRPage(**p) for p in confirmed_pages_raw if p is not None]
+
+    ppocr_pages: list[PPOCRLabelPage] = []
+    for page in sorted(confirmed_page_objs, key=lambda p: p.document_page_number):
+        img_path = make_image_path(document_name, language, page.document_page_number)
+        ppocr_page = ocr_page_to_ppocr(
+            page, img_path, align_to=page.document_page_number
+        )
+        ppocr_pages.append(ppocr_page)
+
+    out_dir = Path(export_dir)
+    label_path = out_dir / "Label.txt"
+    state_path = out_dir / "fileState.txt"
+
+    write_label_txt(ppocr_pages, label_path, overwrite=overwrite)
+    write_file_state_txt(ppocr_pages, state_path, overwrite=overwrite)
+
+    return len(ppocr_pages), label_path, state_path
 
 
 # Overwrite confirmation dialog (requires Streamlit >= 1.29 for st.dialog)
@@ -776,7 +1115,7 @@ if hasattr(st, "dialog"):
         sample_image_path: Path | str | None = None,
         images: list[np.ndarray] | None = None,
     ) -> None:
-        """Modal dialog to confirm overwriting an existing OCRDocument JSON.
+        """Modal dialog to confirm overwriting an existing pages JSON.
 
         Args:
             output_path: Path to the existing file.
@@ -803,6 +1142,76 @@ if hasattr(st, "dialog"):
         with col2:
             if st.button("Cancel", use_container_width=True):
                 st.rerun()
+
+    @st.dialog("⚠️ Export Files Already Exist")
+    def _confirm_overwrite_export_dialog(
+        export_dir: str,
+        document_name: str,
+        language: str,
+    ) -> None:
+        """Modal dialog to confirm overwriting existing PPOCRLabel export files.
+
+        Args:
+            export_dir: Directory containing existing Label.txt / fileState.txt.
+            document_name: Document stem.
+            language: Language folder.
+        """
+        st.warning(f"`Label.txt` or `fileState.txt` already exists in `{export_dir}`.")
+        st.write("Do you want to overwrite the existing export?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, Overwrite", type="primary", use_container_width=True):
+                try:
+                    n_pages, label_p, state_p = _perform_export_ppocr(
+                        export_dir, document_name, language, overwrite=True
+                    )
+                    msg = f"Exported {n_pages} page(s) to `{label_p}` and `{state_p}`."
+                    st.session_state["export_alert"] = ("success", msg)
+                except Exception as exc:
+                    st.session_state["export_alert"] = ("error", str(exc))
+                st.rerun()
+        with col2:
+            if st.button("Cancel", use_container_width=True):
+                st.rerun()
+
+
+def _handle_export_request(
+    export_dir: str,
+    document_name: str,
+    language: str,
+) -> None:
+    """Handle a PPOCRLabel export request with overwrite protection.
+
+    Checks whether ``Label.txt`` or ``fileState.txt`` already exist in
+    *export_dir*.  If either does and overwrite has not been approved, shows the
+    confirmation dialog.  Otherwise proceeds with the export.
+
+    Args:
+        export_dir: Directory in which to write the export files.
+        document_name: Document stem.
+        language: Language folder.
+    """
+    label_p = Path(export_dir) / "Label.txt"
+    state_p = Path(export_dir) / "fileState.txt"
+    files_exist = label_p.exists() or state_p.exists()
+
+    if files_exist and not st.session_state.get("export_overwrite_approved", False):
+        if hasattr(st, "dialog"):
+            _confirm_overwrite_export_dialog(export_dir, document_name, language)
+        else:
+            st.session_state["show_inline_export_overwrite_warning"] = True
+            st.rerun()
+    else:
+        st.session_state["export_overwrite_approved"] = False
+        try:
+            n_pages, label_out, state_out = _perform_export_ppocr(
+                export_dir, document_name, language, overwrite=True
+            )
+            msg = f"Exported {n_pages} page(s) → `{label_out}` and `{state_out}`."
+            st.session_state["export_alert"] = ("success", msg)
+        except Exception as exc:
+            st.session_state["export_alert"] = ("error", str(exc))
+        st.rerun()
 
 
 def _handle_save_request(
@@ -903,7 +1312,12 @@ def _process_and_ocr_for_index(
 
     # Parallel execution: run (Preprocessing + Tesseract) and (VLM OCR) concurrently
     def _prep_and_tess() -> tuple[
-        np.ndarray, OCRPage | None, Image.Image | None, str | None
+        np.ndarray,
+        OCRPage | None,
+        Image.Image | None,
+        Image.Image | None,
+        dict | None,
+        str | None,
     ]:
         try:
             prep = PreprocessPipeline(pipeline_steps).apply(raw_image)
@@ -923,10 +1337,12 @@ def _process_and_ocr_for_index(
                 min_width=min_width,
                 min_height=min_height,
             )
-            annotated = tess.annotate_image()
-            return prep, res, annotated, None
+            annotated_words = tess.annotate_image()
+            annotated_paras = tess.annotate_paragraphs()
+            filtered_raw = tess.filtered_raw
+            return prep, res, annotated_words, annotated_paras, filtered_raw, None
         except Exception as e:
-            return prep, None, None, str(e)
+            return prep, None, None, None, None, str(e)
 
     def _run_vlm() -> tuple[OCRPage | None, str | None]:
         try:
@@ -945,9 +1361,14 @@ def _process_and_ocr_for_index(
         tess_future = executor.submit(_prep_and_tess)
         vlm_future = executor.submit(_run_vlm)
 
-        preprocessed_image, tess_result, tess_annotated, tess_error = (
-            tess_future.result()
-        )
+        (
+            preprocessed_image,
+            tess_result,
+            tess_annotated,
+            tess_annotated_paras,
+            tess_filtered_raw,
+            tess_error,
+        ) = tess_future.result()
         vlm_result, vlm_error = vlm_future.result()
 
     # Seed editor with Tesseract baseline (or VLM fallback, then empty)
@@ -962,6 +1383,8 @@ def _process_and_ocr_for_index(
         "preprocessed_image": preprocessed_image,
         "tess_result": tess_result,
         "tess_annotated": tess_annotated,
+        "tess_annotated_paras": tess_annotated_paras,
+        "tess_filtered_raw": tess_filtered_raw,
         "tess_error": tess_error,
         "vlm_result": vlm_result,
         "vlm_error": vlm_error,
@@ -1074,10 +1497,11 @@ def main() -> None:
                 )
             )
         with cfg_col3:
-            output_path = st.text_input(
-                "Output JSON path",
-                value=st.session_state.get("ocr_output_path", "output/ocr_result.json"),
-                key="ocr_output_path",
+            output_filename = st.text_input(
+                "Output JSON filename",
+                value=st.session_state.get("ocr_output_filename", "ocr_result.json"),
+                key="ocr_output_filename",
+                help="Name of the JSON file to save inside the document directory (document_name/language/).",
             )
             if "document_name" not in st.session_state:
                 st.session_state.document_name = ""
@@ -1104,6 +1528,11 @@ def main() -> None:
     language = st.session_state.get("document_language", "vi")
 
     destination_dir = Path(document_name) / language if document_name else None
+    default_export_dir = str(destination_dir) if destination_dir else "output"
+    output_filename_clean = (
+        output_filename.strip() if output_filename.strip() else "ocr_result.json"
+    )
+    output_path = str(Path(default_export_dir) / output_filename_clean)
     image_paths: list[Path] = []
     pages: list[int] = st.session_state.get("pages", [])
 
@@ -1210,33 +1639,17 @@ def main() -> None:
     n_confirmed = sum(confirmed_flags)
 
     # -----------------------------------------------------------------------
-    # Sidebar: Progress & Save
-    # -----------------------------------------------------------------------
-    with st.sidebar:
-        st.divider()
-        st.subheader("Progress & Save")
-        st.caption(f"{n_confirmed} of {total} page(s) confirmed.")
-        if st.button(
-            f"💾 Save Progress ({n_confirmed}/{total})",
-            disabled=(n_confirmed == 0),
-            use_container_width=True,
-            help="Save confirmed pages to OCRDocument JSON immediately.",
-        ):
-            source_name = st.session_state.get("document_name", "document.pdf")
-            language = st.session_state.get("document_language", "vi")
-            _handle_save_request(
-                output_path=output_path,
-                source_name=source_name,
-                language=language,
-                sample_image_path=sample_image_path,
-                images=legacy_images if not image_paths else None,
-            )
-
-    # -----------------------------------------------------------------------
     # Save notification banners
     # -----------------------------------------------------------------------
     if "save_alert" in st.session_state:
         level, msg = st.session_state.pop("save_alert")
+        if level == "success":
+            st.success(msg)
+        elif level == "error":
+            st.error(msg)
+
+    if "export_alert" in st.session_state:
+        level, msg = st.session_state.pop("export_alert")
         if level == "success":
             st.success(msg)
         elif level == "error":
@@ -1335,6 +1748,8 @@ def main() -> None:
     page_data = st.session_state.ocr_page_cache[index]
     tess_result: OCRPage | None = page_data.get("tess_result")
     tess_annotated = page_data.get("tess_annotated")
+    tess_annotated_paras = page_data.get("tess_annotated_paras")
+    tess_filtered_raw = page_data.get("tess_filtered_raw")
     tess_error: str | None = page_data.get("tess_error")
     vlm_result: OCRPage | None = page_data.get("vlm_result")
     vlm_error: str | None = page_data.get("vlm_error")
@@ -1431,16 +1846,35 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Three-column review area
     # -----------------------------------------------------------------------
+    bbox_session_key = f"ocr_bbox_list_{index}"
+    current_reviewed_paragraphs = _split_paragraphs(current_text)
+
+    # Initialize or synchronize bounding boxes with current reviewed paragraphs
+    prev_bbox_list = st.session_state.get(bbox_session_key, [])
+    synced_bbox_rows = _sync_paragraph_bboxes(
+        prev_bbox_list,
+        current_reviewed_paragraphs,
+        tess_page=tess_result,
+        filtered_raw=tess_filtered_raw,
+    )
+    st.session_state[bbox_session_key] = synced_bbox_rows
+
     col_img, col_warn, col_text = st.columns([1.5, 1, 1])
 
     with col_img:
         col_mode, col_rerun = st.columns([1, 2])
 
         with col_mode:
-            display_options = ["Annotated", "Original image"]
+            display_options = [
+                "Paragraphs (Annotated)",
+                "Words (Annotated)",
+                "Original image",
+            ]
             if is_modified:
-                display_options.insert(1, "Preprocessed image")
-            saved_mode = st.session_state.get(f"image_view_mode_{index}", "Annotated")
+                display_options.insert(2, "Preprocessed image")
+            saved_mode = st.session_state.get(
+                f"image_view_mode_{index}", "Paragraphs (Annotated)"
+            )
             mode_idx = (
                 display_options.index(saved_mode)
                 if saved_mode in display_options
@@ -1462,6 +1896,7 @@ def main() -> None:
                     _PREFETCH_CACHE.pop(index, None)
                 st.session_state.pop(editor_key, None)
                 st.session_state.pop(f"ocr_vlm_widget_{index}", None)
+                st.session_state.pop(bbox_session_key, None)
                 st.rerun()
 
         # Load active image on-demand for display
@@ -1473,7 +1908,7 @@ def main() -> None:
 
         # Choose what to display
         preprocessed_image = page_data.get("preprocessed_image")
-        if view_mode == "Annotated":
+        if view_mode == "Words (Annotated)":
             if tess_error:
                 st.error(f"Tesseract failed: {tess_error}")
             elif tess_annotated is not None:
@@ -1482,6 +1917,46 @@ def main() -> None:
                 st.image(_image_to_pil(preprocessed_image), width="stretch")
             else:
                 st.image(_image_to_pil(current_image), width="stretch")
+        elif view_mode == "Paragraphs (Annotated)":
+            if tess_error:
+                st.error(f"Tesseract failed: {tess_error}")
+            else:
+                # Live dynamic drawing using currently adjusted bounding boxes
+                base_img = (
+                    preprocessed_image
+                    if preprocessed_image is not None
+                    else current_image
+                )
+                current_live_paras = [
+                    OCRParagraph(
+                        paragraph_id=i + 1,
+                        bbox=(
+                            int(r["x_min"]),
+                            int(r["y_min"]),
+                            int(r["x_max"]),
+                            int(r["y_max"]),
+                        )
+                        if (
+                            r.get("x_min") is not None
+                            and r.get("y_min") is not None
+                            and r.get("x_max") is not None
+                            and r.get("y_max") is not None
+                            and not (
+                                r.get("x_min") == 0
+                                and r.get("y_min") == 0
+                                and r.get("x_max") == 0
+                                and r.get("y_max") == 0
+                            )
+                        )
+                        else None,
+                        text=r.get("Preview", ""),
+                    )
+                    for i, r in enumerate(synced_bbox_rows)
+                ]
+                live_annotated_paras = _draw_paragraph_bboxes(
+                    base_img, current_live_paras
+                )
+                st.image(live_annotated_paras, width="stretch")
         elif view_mode == "Preprocessed image":
             if preprocessed_image is not None:
                 st.image(
@@ -1514,12 +1989,30 @@ def main() -> None:
         if warnings:
             icons = {"mismatch": "⚡", "soft_mismatch": "🔶", "orphan": "🔀"}
             st.write(f"⚠️ {len(warnings)} Warning(s) & Discrepancies")
-            with st.container(height=300, border=True):
+            with st.container(height=200, border=True):
                 for w in warnings:
                     icon = icons.get(w["type"], "⚠️")
                     st.markdown(f"{icon} **{w['label']}** - {w['msg']}")
         else:
             st.success("✅ No mismatches detected.")
+
+        st.subheader("Paragraph Bounding Boxes")
+        st.caption("Adjust (x_min, y_min, x_max, y_max) for each paragraph.")
+        edited_bboxes = st.data_editor(
+            synced_bbox_rows,
+            key=f"ocr_bbox_editor_{index}",
+            disabled=["Paragraph", "Preview"],
+            hide_index=True,
+            column_config={
+                "Paragraph": st.column_config.TextColumn("ID", width="small"),
+                "x_min": st.column_config.NumberColumn("x_min", step=1),
+                "y_min": st.column_config.NumberColumn("y_min", step=1),
+                "x_max": st.column_config.NumberColumn("x_max", step=1),
+                "y_max": st.column_config.NumberColumn("y_max", step=1),
+                "Preview": st.column_config.TextColumn("Preview", width="medium"),
+            },
+        )
+        st.session_state[bbox_session_key] = edited_bboxes
 
     with col_text:
         st.badge("Separate paragraphs with a blank line.")
@@ -1561,10 +2054,40 @@ def main() -> None:
             )
             if st.button(confirm_label, type="primary"):
                 final_text = st.session_state.get(editor_key, "")
+                # Extract customized bboxes from session state
+                curr_bbox_rows = st.session_state.get(bbox_session_key, [])
+                custom_boxes: list[tuple[int, int, int, int] | None] = []
+                for r in curr_bbox_rows:
+                    if (
+                        r.get("x_min") is not None
+                        and r.get("y_min") is not None
+                        and r.get("x_max") is not None
+                        and r.get("y_max") is not None
+                        and not (
+                            r.get("x_min") == 0
+                            and r.get("y_min") == 0
+                            and r.get("x_max") == 0
+                            and r.get("y_max") == 0
+                        )
+                    ):
+                        custom_boxes.append(
+                            (
+                                int(r["x_min"]),
+                                int(r["y_min"]),
+                                int(r["x_max"]),
+                                int(r["y_max"]),
+                            )
+                        )
+                    else:
+                        custom_boxes.append(None)
+
                 page_obj = _build_ocr_page(
                     text=final_text,
                     pdf_page_number=pdf_page,
                     document_page_number=doc_page,
+                    tess_page=tess_result,
+                    filtered_raw=tess_filtered_raw,
+                    custom_bboxes=custom_boxes if custom_boxes else None,
                 )
                 confirmed_flags[index] = True
                 st.session_state.ocr_confirmed_flags = confirmed_flags
@@ -1599,7 +2122,7 @@ def main() -> None:
     all_confirmed = all(confirmed_flags[:total])
 
     if all_confirmed:
-        st.subheader("Finalize - Write OCRDocument")
+        st.subheader("Finalize — Export")
         st.success(
             f"All {total} image(s) confirmed. Ready to write the final document."
         )
@@ -1607,19 +2130,20 @@ def main() -> None:
         st.subheader(f"Save Progress ({n_confirmed}/{total} images confirmed)")
         st.info(
             f"You have confirmed {n_confirmed} of {total} images. "
-            "You can write an intermediate OCRDocument JSON anytime."
+            "You can save intermediate progress or export PPOCRLabel files anytime."
         )
 
     source_name = st.session_state.get("document_name", "document.pdf")
     st.caption(f"Source document: **{source_name}**")
 
+    # ---- Intermediate save (pages JSON) ----
     save_btn_label = (
-        "Write OCRDocument JSON"
-        if all_confirmed
-        else f"💾 Save Progress as OCRDocument ({n_confirmed} pages)"
+        "💾 Save Progress (pages JSON)"
+        if not all_confirmed
+        else f"💾 Save Progress as pages JSON ({n_confirmed} pages)"
     )
 
-    if st.button(save_btn_label, type="primary", disabled=(n_confirmed == 0)):
+    if st.button(save_btn_label, disabled=(n_confirmed == 0)):
         _handle_save_request(
             output_path=output_path,
             source_name=source_name,
@@ -1634,13 +2158,57 @@ def main() -> None:
         try:
             doc_content = out_file_path.read_text(encoding="utf-8")
             st.download_button(
-                "Download Current OCRDocument JSON",
+                "⬇️ Download Current Pages JSON",
                 data=doc_content,
                 file_name=out_file_path.name,
                 mime="application/json",
             )
         except Exception:
             pass
+
+    st.divider()
+
+    # ---- PPOCRLabel export ----
+    st.subheader("Export PPOCRLabel")
+    export_dir_input = st.text_input(
+        "Export directory",
+        value=st.session_state.get("ppocr_export_dir", default_export_dir),
+        key="ppocr_export_dir",
+        help="Directory where Label.txt and fileState.txt will be written.",
+    )
+    export_dir_path = Path(export_dir_input)
+    label_exists = (export_dir_path / "Label.txt").exists()
+    state_exists = (export_dir_path / "fileState.txt").exists()
+    if label_exists or state_exists:
+        existing = ", ".join(
+            f"`{f}`"
+            for f, ex in [("Label.txt", label_exists), ("fileState.txt", state_exists)]
+            if ex
+        )
+        st.warning(f"⚠️ {existing} already exist in `{export_dir_input}`.")
+
+    # Inline overwrite warning for PPOCRLabel export (Streamlit < 1.29 fallback)
+    if st.session_state.get("show_inline_export_overwrite_warning", False):
+        st.warning(
+            f"`Label.txt` or `fileState.txt` already exists in `{export_dir_input}`."
+        )
+        col_ow1, col_ow2 = st.columns(2)
+        with col_ow1:
+            if st.button("⚠️ Confirm Overwrite Export", type="primary"):
+                st.session_state["show_inline_export_overwrite_warning"] = False
+                st.session_state["export_overwrite_approved"] = True
+                _handle_export_request(export_dir_input, source_name, language)
+        with col_ow2:
+            if st.button("Cancel Export"):
+                st.session_state["show_inline_export_overwrite_warning"] = False
+                st.rerun()
+
+    if st.button(
+        f"📤 Export PPOCRLabel ({n_confirmed} pages)",
+        type="primary",
+        disabled=(n_confirmed == 0),
+    ):
+        _handle_export_request(export_dir_input, source_name, language)
 
 
 if __name__ == "__main__":

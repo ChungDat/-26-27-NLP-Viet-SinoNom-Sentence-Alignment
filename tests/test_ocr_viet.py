@@ -9,7 +9,6 @@ try:
     from PIL import Image
 
     from src.ocr_viet import (
-        OCRDocument,
         OCRPage,
         VLMOCR,
         TesseractOCR,
@@ -80,24 +79,12 @@ class TestOCRViet(unittest.TestCase):
         )
         paragraph = page.paragraphs[0]
         self.assertEqual(paragraph.text, "Xin chào Việt Nam.")
-        self.assertEqual(
-            [word.text for word in paragraph.words],
-            ["Xin", "chào", "Việt", "Nam."],
-        )
         self.assertIn("Xin chào Việt Nam.", ocr._page_to_text(page))
 
-        document = OCRDocument(
-            source="test",
-            language="vie",
-            page_count=1,
-            pages=[page],
-        )
-        serialized_paragraph = document.model_dump()["pages"][0]["paragraphs"][0]
+        # Serialize via model_dump — paragraphs should have no 'words' or 'lines' key
+        serialized_paragraph = page.model_dump()["paragraphs"][0]
         self.assertNotIn("lines", serialized_paragraph)
-        self.assertEqual(
-            [word["text"] for word in serialized_paragraph["words"]],
-            ["Xin", "chào", "Việt", "Nam."],
-        )
+        self.assertNotIn("words", serialized_paragraph)
 
     def test_tesseract_merges_close_paragraphs_and_keeps_word_order(self):
         ocr = TesseractOCR(lang="vie")
@@ -118,10 +105,6 @@ class TestOCRViet(unittest.TestCase):
         )
         self.assertEqual(len(page.paragraphs), 1)
         self.assertEqual(page.paragraphs[0].text, "đoạn tiếp.")
-        self.assertEqual(
-            [word.text for word in page.paragraphs[0].words],
-            ["đoạn", "tiếp."],
-        )
 
     def test_tesseract_merges_close_blocks_before_paragraphs(self):
         ocr = TesseractOCR(lang="vie")
@@ -270,10 +253,6 @@ class TestOCRViet(unittest.TestCase):
         self.assertEqual(
             ocr.page.paragraphs[0].text,
             "Hà Nội là thủ đô.",
-        )
-        self.assertEqual(
-            [word.text for word in ocr.page.paragraphs[0].words],
-            ["Hà", "Nội", "là", "thủ", "đô."],
         )
         self.assertNotIn("lines", ocr.page.model_dump()["paragraphs"][0])
 
