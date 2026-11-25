@@ -4,6 +4,7 @@ import io
 import re
 import statistics
 import time
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -72,9 +73,10 @@ def to_image_bytes(image: str | Path | bytes | np.ndarray | Image.Image) -> byte
 
 
 def normalize_text(text: str) -> str:
-    """Normalize OCR text by collapsing soft line wraps and preserving paragraph breaks
+    """Normalize OCR text by collapsing soft line wraps, NFC normalization, and formatting punctuation.
 
     Single newlines are treated as OCR soft wraps and replaced with spaces; two or more consecutive newlines remain a single blank-line paragraph separator. Sentence punctuation does not create line breaks.
+    Spaces before punctuation marks (like commas, colons, dots) are removed, and multiple whitespace characters are collapsed.
 
     Args:
         text: Raw OCR text, potentially containing soft-wrapped lines and spaces before punctuation marks.
@@ -82,6 +84,9 @@ def normalize_text(text: str) -> str:
     Returns:
         Normalized text with soft wraps collapsed and paragraphs separated by a blank line.
     """
+    # NFC normalization
+    text = unicodedata.normalize("NFC", text)
+
     # Step 1 — collapse single newlines (soft wraps) to spaces;
     #           collapse two-or-more newlines to a single blank line (paragraph break).
     normalized = re.sub(
@@ -90,7 +95,11 @@ def normalize_text(text: str) -> str:
         text,
     )
 
-    normalized = re.sub(r"[ \t]+\.", ".", normalized)
+    # Remove spaces before closing punctuation
+    normalized = re.sub(r"[ \t]+([,.:;!?%)\]}])", r"\1", normalized)
+    # Remove spaces after opening brackets
+    normalized = re.sub(r"([(\[{])[ \t]+", r"\1", normalized)
+    # Collapse consecutive horizontal whitespace
     normalized = re.sub(r"[ \t]+", " ", normalized)
     normalized = normalized.strip(" \t")
 
