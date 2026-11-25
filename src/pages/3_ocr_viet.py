@@ -833,6 +833,59 @@ def _compute_warnings(
     )
 
 
+def _format_paragraph_words_html(
+    words: list[str],
+    hard_flagged: set[int],
+    soft_flagged: set[int],
+    para_missing: dict[int, list[str]] | None = None,
+) -> str:
+    """Format a paragraph's words as HTML with hard/soft mismatch highlights.
+
+    Args:
+        words: Tokenized words in the paragraph.
+        hard_flagged: Word indices with hard mismatches (rendered red bold).
+        soft_flagged: Word indices with soft/fuzzy mismatches (rendered orange bold).
+        para_missing: Optional mapping of word index to missing VLM segments to
+            render inline with ``[MISSING: ...]`` tags.
+
+    Returns:
+        Space-joined HTML string for the paragraph.
+    """
+    formatted_words: list[str] = []
+
+    for w_idx, w in enumerate(words):
+        if para_missing and w_idx in para_missing:
+            for missing_seg in para_missing[w_idx]:
+                escaped_seg = html.escape(missing_seg)
+                formatted_words.append(
+                    f"<span style='color: red; font-weight: bold; "
+                    f"text-decoration: underline;'>[MISSING: {escaped_seg}]</span>"
+                )
+
+        escaped_word = html.escape(w)
+        # Hard mismatch takes priority over soft
+        if w_idx in hard_flagged:
+            formatted_words.append(
+                f"<span style='color: red; font-weight: bold;'>{escaped_word}</span>"
+            )
+        elif w_idx in soft_flagged:
+            formatted_words.append(
+                f"<span style='color: orange; font-weight: bold;'>{escaped_word}</span>"
+            )
+        else:
+            formatted_words.append(escaped_word)
+
+    if para_missing and len(words) in para_missing:
+        for missing_seg in para_missing[len(words)]:
+            escaped_seg = html.escape(missing_seg)
+            formatted_words.append(
+                f"<span style='color: red; font-weight: bold; "
+                f"text-decoration: underline;'>[MISSING: {escaped_seg}]</span>"
+            )
+
+    return " ".join(formatted_words)
+
+
 def _render_highlighted_text(
     editor_text: str,
     hard_mismatch_indices_by_para: dict[int, set[int]],
@@ -887,50 +940,196 @@ def _render_highlighted_text(
 
         if i < len(editor_paras):
             para = editor_paras[i]
-            words = para.split()
-            hard_flagged = hard_mismatch_indices_by_para.get(i, set())
-            soft_flagged = soft_mismatch_indices_by_para.get(i, set())
-            para_missing = missing_words_by_para.get(i, {})
-            formatted_words: list[str] = []
-
-            for w_idx, w in enumerate(words):
-                # Render any missing insertions before this word
-                if w_idx in para_missing:
-                    for missing_seg in para_missing[w_idx]:
-                        escaped_seg = html.escape(missing_seg)
-                        formatted_words.append(
-                            f"<span style='color: red; font-weight: bold; "
-                            f"text-decoration: underline;'>[MISSING: {escaped_seg}]</span>"
-                        )
-
-                escaped_word = html.escape(w)
-                # Hard mismatch takes priority over soft
-                if w_idx in hard_flagged:
-                    formatted_words.append(
-                        f"<span style='color: red; font-weight: bold;'>{escaped_word}</span>"
-                    )
-                elif w_idx in soft_flagged:
-                    formatted_words.append(
-                        f"<span style='color: orange; font-weight: bold;'>{escaped_word}</span>"
-                    )
-                else:
-                    formatted_words.append(escaped_word)
-
-            # Render missing insertions at end of paragraph
-            if len(words) in para_missing:
-                for missing_seg in para_missing[len(words)]:
-                    escaped_seg = html.escape(missing_seg)
-                    formatted_words.append(
-                        f"<span style='color: red; font-weight: bold; "
-                        f"text-decoration: underline;'>[MISSING: {escaped_seg}]</span>"
-                    )
-
-            para_html = " ".join(formatted_words)
+            para_html = _format_paragraph_words_html(
+                para.split(),
+                hard_mismatch_indices_by_para.get(i, set()),
+                soft_mismatch_indices_by_para.get(i, set()),
+                para_missing=missing_words_by_para.get(i, {}),
+            )
             html_paragraphs.append(
                 f"<p style='margin: 0 0 10px 0; line-height: 1.5;'>{para_html}</p>"
             )
 
     return f"<div style='font-size: 1.15rem; line-height: 1.6;'>{''.join(html_paragraphs)}</div>"
+
+
+def _render_editable_highlighted_html(
+    editor_text: str,
+    hard_mismatch_indices_by_para: dict[int, set[int]],
+    soft_mismatch_indices_by_para: dict[int, set[int]] | None = None,
+) -> str:
+    """Build inner HTML for the editable Final text box without missing tags.
+
+    Paragraphs are joined by ``\\n\\n`` so a ``white-space: pre-wrap``
+    ``contenteditable`` container renders blank-line paragraph breaks and
+    round-trips cleanly back to plain text.
+    """
+    if soft_mismatch_indices_by_para is None:
+        soft_mismatch_indices_by_para = {}
+
+    editor_paras = _split_paragraphs(editor_text)
+    if not editor_paras:
+        return ""
+
+    formatted_paras = [
+        _format_paragraph_words_html(
+            para.split(),
+            hard_mismatch_indices_by_para.get(i, set()),
+            soft_mismatch_indices_by_para.get(i, set()),
+            para_missing=None,
+        )
+        for i, para in enumerate(editor_paras)
+    ]
+    return "\n\n".join(formatted_paras)
+
+
+_EDITABLE_HTML_BOX_CSS = """
+.ocr-editable-box {
+    box-sizing: border-box;
+    width: 100%;
+    height: 250px;
+    overflow-y: auto;
+    padding: 0.75rem;
+    border: 1px solid var(--st-border-color, rgba(49, 51, 63, 0.2));
+    border-radius: var(--st-base-radius, 0.5rem);
+    background-color: var(--st-secondary-background-color, #f0f2f6);
+    color: var(--st-text-color, inherit);
+    font-family: var(--st-font, inherit);
+    font-size: 1.15rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    outline: none;
+}
+.ocr-editable-box:focus {
+    border-color: var(--st-primary-color, #ff4b4b);
+    box-shadow: 0 0 0 1px var(--st-primary-color, #ff4b4b);
+}
+.ocr-editable-box:empty::before {
+    content: attr(data-placeholder);
+    color: #888;
+    font-style: italic;
+    pointer-events: none;
+}
+"""
+
+_EDITABLE_HTML_BOX_JS = """
+export default function(component) {
+    const { data, parentElement, setTriggerValue } = component;
+
+    let editor = parentElement.querySelector('.ocr-editable-box');
+    if (!editor) {
+        editor = document.createElement('div');
+        editor.className = 'ocr-editable-box';
+        editor.contentEditable = 'true';
+        editor.spellcheck = false;
+        editor.setAttribute('role', 'textbox');
+        editor.setAttribute('aria-multiline', 'true');
+        editor.setAttribute('data-placeholder', 'Enter or edit final text...');
+        parentElement.appendChild(editor);
+
+        const extractPlainText = (root) => {
+            const walk = (node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.nodeValue || '';
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) {
+                    return '';
+                }
+                const tag = node.tagName;
+                if (tag === 'BR') {
+                    return '\\n';
+                }
+                let out = '';
+                for (const child of node.childNodes) {
+                    out += walk(child);
+                }
+                if ((tag === 'DIV' || tag === 'P') && node.previousSibling) {
+                    if (!out.startsWith('\\n')) {
+                        out = '\\n' + out;
+                    }
+                }
+                return out;
+            };
+            let text = walk(root).replace(/\\r\\n?/g, '\\n');
+            if (text === '\\n' && root.querySelectorAll('*').length <= 1) {
+                return '';
+            }
+            return text;
+        };
+
+        const insertPlainText = (text) => {
+            if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+                if (document.execCommand('insertText', false, text)) {
+                    return;
+                }
+            }
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const textNode = document.createTextNode(text);
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        };
+
+        const commit = () => {
+            const current = extractPlainText(editor);
+            const last = editor.dataset.lastCommitted ?? '';
+            if (current !== last) {
+                editor.dataset.lastCommitted = current;
+                setTriggerValue('text', current);
+            }
+        };
+
+        editor.addEventListener('blur', commit);
+
+        editor.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+                return;
+            }
+            if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                insertPlainText('\\n');
+            }
+        });
+
+        editor.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData)
+                .getData('text/plain')
+                .replace(/\\r\\n?/g, '\\n');
+            insertPlainText(text);
+        });
+    }
+
+    const incomingPlain = (data && data.plain) ? data.plain : '';
+    const incomingHtml = (data && data.html) ? data.html : '';
+    const isFocused = (parentElement.activeElement === editor) || (document.activeElement === editor);
+
+    if (!isFocused || editor.dataset.lastCommitted !== incomingPlain) {
+        if (!isFocused) {
+            editor.innerHTML = incomingHtml;
+            editor.dataset.lastCommitted = incomingPlain;
+        }
+    }
+}
+"""
+
+_EDITABLE_HTML_BOX = (
+    st.components.v2.component(
+        "ocr_editable_html_box",
+        css=_EDITABLE_HTML_BOX_CSS,
+        js=_EDITABLE_HTML_BOX_JS,
+    )
+    if hasattr(st, "components") and hasattr(st.components, "v2")
+    else None
+)
 
 
 # ---------------------------------------------------------------------------
@@ -2352,12 +2551,31 @@ def main() -> None:
         st.badge("Separate paragraphs with a blank line.")
 
         st.subheader("Final text")
-        st.text_area(
-            "Reviewed text",
-            height=250,
-            key=editor_key,
-            label_visibility="collapsed",
+        editable_html = _render_editable_highlighted_html(
+            current_text,
+            hard_mismatch_indices_by_para,
+            soft_mismatch_indices_by_para=soft_mismatch_indices_by_para,
         )
+        if _EDITABLE_HTML_BOX is not None:
+            editable_result = _EDITABLE_HTML_BOX(
+                key=f"{editor_key}_html",
+                data={
+                    "html": editable_html,
+                    "plain": "\n\n".join(_split_paragraphs(current_text)),
+                },
+                on_text_change=lambda: None,
+            )
+            edited_text = getattr(editable_result, "text", None)
+            if edited_text is not None and edited_text != current_text:
+                st.session_state[editor_key] = edited_text
+                st.rerun()
+        else:
+            st.text_area(
+                "Reviewed text",
+                height=250,
+                key=editor_key,
+                label_visibility="collapsed",
+            )
 
         st.subheader("VLM Reference Text")
         st.text_area(

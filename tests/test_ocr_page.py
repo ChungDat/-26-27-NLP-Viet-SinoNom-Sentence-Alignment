@@ -864,6 +864,38 @@ class TestSaveOrUpdateOCRPageInJSON(unittest.TestCase):
             self.assertEqual(data[0]["paragraphs"][0]["text"], "New 20")
 
 
+_render_editable_highlighted_html = _page_mod._render_editable_highlighted_html
+
+
+class TestRenderEditableHighlightedHtml(unittest.TestCase):
+    """Tests for _render_editable_highlighted_html(...)."""
+
+    def test_empty_text_returns_empty_string(self):
+        self.assertEqual(_render_editable_highlighted_html("", {}), "")
+        self.assertEqual(_render_editable_highlighted_html("   \n\n  ", {}), "")
+
+    def test_highlights_hard_and_soft_mismatches_without_missing_tags(self):
+        html_out = _render_editable_highlighted_html(
+            "Xin chào thế giới\n\nĐoạn hai ở đây",
+            {0: {1}, 1: {2}},
+            {0: {2}},
+        )
+        self.assertIn(
+            "<span style='color: red; font-weight: bold;'>chào</span>",
+            html_out,
+        )
+        self.assertIn(
+            "<span style='color: orange; font-weight: bold;'>thế</span>",
+            html_out,
+        )
+        self.assertIn(
+            "<span style='color: red; font-weight: bold;'>ở</span>",
+            html_out,
+        )
+        self.assertIn("\n\n", html_out)
+        self.assertNotIn("[MISSING", html_out)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
