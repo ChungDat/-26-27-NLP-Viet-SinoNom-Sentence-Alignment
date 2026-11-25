@@ -930,7 +930,7 @@ def _render_highlighted_text(
                 f"<p style='margin: 0 0 10px 0; line-height: 1.5;'>{para_html}</p>"
             )
 
-    return "".join(html_paragraphs)
+    return f"<div style='font-size: 1.15rem; line-height: 1.6;'>{''.join(html_paragraphs)}</div>"
 
 
 # ---------------------------------------------------------------------------
@@ -2142,8 +2142,14 @@ def main() -> None:
 
     def _on_image_select() -> None:
         selected_i = st.session_state.get("image_selector_box")
-        if selected_i is not None:
+        if isinstance(selected_i, int):
+            st.session_state.ocr_current_index = selected_i
+        elif isinstance(selected_i, str) and selected_i.isdigit():
             st.session_state.ocr_current_index = int(selected_i)
+
+    # Keep the selectbox state in sync with ocr_current_index when changed via buttons
+    if st.session_state.get("image_selector_box") != index:
+        st.session_state["image_selector_box"] = index
 
     sel_col1, sel_col2, sel_col3 = st.columns([1, 4, 1])
     with sel_col1:
@@ -2151,6 +2157,7 @@ def main() -> None:
             "← Previous Image", disabled=(index == 0), key="btn_prev_image_top"
         ):
             st.session_state.ocr_current_index = index - 1
+            st.session_state["image_selector_box"] = index - 1
             st.rerun()
     with sel_col2:
         st.selectbox(
@@ -2167,6 +2174,7 @@ def main() -> None:
             "Next Image →", disabled=(index >= total - 1), key="btn_next_image_top"
         ):
             st.session_state.ocr_current_index = index + 1
+            st.session_state["image_selector_box"] = index + 1
             st.rerun()
 
     # -----------------------------------------------------------------------
