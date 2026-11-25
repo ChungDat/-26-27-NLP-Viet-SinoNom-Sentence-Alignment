@@ -1376,13 +1376,19 @@ def _perform_export_ppocr(
         parsed_doc_page, parsed_align_to = None, None
         has_header = False
         if page.paragraphs:
-            p_doc, p_align = parse_header_paragraph(page.paragraphs[0].text, language=language)
+            p_doc, p_align = parse_header_paragraph(
+                page.paragraphs[0].text, language=language
+            )
             if p_doc is not None:
                 has_header = True
                 parsed_doc_page = p_doc
                 parsed_align_to = p_align
 
-        doc_page_to_use = parsed_doc_page if parsed_doc_page is not None else page.document_page_number
+        doc_page_to_use = (
+            parsed_doc_page
+            if parsed_doc_page is not None
+            else page.document_page_number
+        )
         img_path = make_image_path(document_name, language, doc_page_to_use)
         ppocr_page = ocr_page_to_ppocr(
             page,
@@ -2062,7 +2068,9 @@ def main() -> None:
             st.error(msg)
 
     # Overwrite confirmation dialog for page in ocr_result.json
-    if hasattr(st, "dialog") and st.session_state.get("show_page_overwrite_dialog", False):
+    if hasattr(st, "dialog") and st.session_state.get(
+        "show_page_overwrite_dialog", False
+    ):
         pending_page_data = st.session_state.get("pending_page_overwrite")
         if pending_page_data:
             _confirm_overwrite_page_dialog(
@@ -2071,7 +2079,9 @@ def main() -> None:
             )
 
     # Page mismatch confirmation dialog
-    if hasattr(st, "dialog") and st.session_state.get("show_page_mismatch_dialog", False):
+    if hasattr(st, "dialog") and st.session_state.get(
+        "show_page_mismatch_dialog", False
+    ):
         mismatch_info = st.session_state.get("pending_page_mismatch")
         if mismatch_info:
             _confirm_page_mismatch_dialog(
@@ -2084,7 +2094,9 @@ def main() -> None:
             )
 
     # Fallback inline overwrite warning for older Streamlit
-    if not hasattr(st, "dialog") and st.session_state.get("show_inline_overwrite_warning", False):
+    if not hasattr(st, "dialog") and st.session_state.get(
+        "show_inline_overwrite_warning", False
+    ):
         st.warning(f"File `{output_path}` already exists.")
         col_ow1, col_ow2 = st.columns(2)
         with col_ow1:
@@ -2342,22 +2354,39 @@ def main() -> None:
     def _on_image_select() -> None:
         selected_i = st.session_state.get("image_selector_box")
         if isinstance(selected_i, int):
-            st.session_state.ocr_current_index = selected_i
+            target = selected_i
         elif isinstance(selected_i, str) and selected_i.isdigit():
-            st.session_state.ocr_current_index = int(selected_i)
+            target = int(selected_i)
+        else:
+            target = None
 
-    # Keep the selectbox state in sync with ocr_current_index when changed via buttons
-    if st.session_state.get("image_selector_box") != index:
+        if target is not None and 0 <= target < total:
+            st.session_state.ocr_current_index = target
+            st.session_state["image_selector_box"] = target
+
+    def _go_prev() -> None:
+        if st.session_state.ocr_current_index > 0:
+            st.session_state.ocr_current_index -= 1
+            st.session_state["image_selector_box"] = st.session_state.ocr_current_index
+
+    def _go_next() -> None:
+        if st.session_state.ocr_current_index < total - 1:
+            st.session_state.ocr_current_index += 1
+            st.session_state["image_selector_box"] = st.session_state.ocr_current_index
+
+    # Always ensure image_selector_box in session_state is an int matching current index
+    raw_box_val = st.session_state.get("image_selector_box")
+    if not isinstance(raw_box_val, int) or raw_box_val != index:
         st.session_state["image_selector_box"] = index
 
     sel_col1, sel_col2, sel_col3 = st.columns([1, 4, 1])
     with sel_col1:
-        if st.button(
-            "← Previous Image", disabled=(index == 0), key="btn_prev_image_top"
-        ):
-            st.session_state.ocr_current_index = index - 1
-            st.session_state["image_selector_box"] = index - 1
-            st.rerun()
+        st.button(
+            "← Previous Image",
+            disabled=(index == 0),
+            key="btn_prev_image_top",
+            on_click=_go_prev,
+        )
     with sel_col2:
         st.selectbox(
             "Select Image to Review",
@@ -2369,12 +2398,12 @@ def main() -> None:
             label_visibility="collapsed",
         )
     with sel_col3:
-        if st.button(
-            "Next Image →", disabled=(index >= total - 1), key="btn_next_image_top"
-        ):
-            st.session_state.ocr_current_index = index + 1
-            st.session_state["image_selector_box"] = index + 1
-            st.rerun()
+        st.button(
+            "Next Image →",
+            disabled=(index >= total - 1),
+            key="btn_next_image_top",
+            on_click=_go_next,
+        )
 
     # -----------------------------------------------------------------------
     # Three-column review area
@@ -2392,7 +2421,7 @@ def main() -> None:
     )
     st.session_state[bbox_session_key] = synced_bbox_rows
 
-    col_img, col_warn, col_text = st.columns([1.5, 1, 1])
+    col_img, col_edit, col_ref = st.columns([1.5, 1, 1])
 
     with col_img:
         col_mode, col_rerun = st.columns([1, 2])
@@ -2508,46 +2537,7 @@ def main() -> None:
         if vlm_error:
             st.error(f"VLM failed: {vlm_error}")
 
-    with col_warn:
-        highlighted_html = _render_highlighted_text(
-            current_text,
-            hard_mismatch_indices_by_para,
-            soft_mismatch_indices_by_para=soft_mismatch_indices_by_para,
-            missing_words_by_para=missing_words_by_para,
-            missing_paras_by_idx=missing_paras_by_idx,
-        )
-        with st.container(height=200, border=True):
-            st.markdown(highlighted_html, unsafe_allow_html=True)
-
-        if warnings:
-            icons = {"mismatch": "⚡", "soft_mismatch": "🔶", "orphan": "🔀"}
-            st.write(f"⚠️ {len(warnings)} Warning(s) & Discrepancies")
-            with st.container(height=200, border=True):
-                for w in warnings:
-                    icon = icons.get(w["type"], "⚠️")
-                    st.markdown(f"{icon} **{w['label']}** - {w['msg']}")
-        else:
-            st.success("✅ No mismatches detected.")
-
-        st.subheader("Paragraph Bounding Boxes")
-        st.caption("Adjust (x_min, y_min, x_max, y_max) for each paragraph.")
-        edited_bboxes = st.data_editor(
-            synced_bbox_rows,
-            key=f"ocr_bbox_editor_{index}",
-            disabled=["Paragraph", "Preview"],
-            hide_index=True,
-            column_config={
-                "Paragraph": st.column_config.TextColumn("ID", width="small"),
-                "x_min": st.column_config.NumberColumn("x_min", step=1),
-                "y_min": st.column_config.NumberColumn("y_min", step=1),
-                "x_max": st.column_config.NumberColumn("x_max", step=1),
-                "y_max": st.column_config.NumberColumn("y_max", step=1),
-                "Preview": st.column_config.TextColumn("Preview", width="medium"),
-            },
-        )
-        st.session_state[bbox_session_key] = edited_bboxes
-
-    with col_text:
+    with col_edit:
         st.badge("Separate paragraphs with a blank line.")
 
         st.subheader("Final text")
@@ -2577,18 +2567,23 @@ def main() -> None:
                 label_visibility="collapsed",
             )
 
-        st.subheader("VLM Reference Text")
-        st.text_area(
-            "VLM Reference Text",
-            height=250,
-            key=vlm_key,
-            label_visibility="collapsed",
+        st.subheader("Paragraph Bounding Boxes")
+        st.caption("Adjust (x_min, y_min, x_max, y_max) for each paragraph.")
+        edited_bboxes = st.data_editor(
+            synced_bbox_rows,
+            key=f"ocr_bbox_editor_{index}",
+            disabled=["Paragraph", "Preview"],
+            hide_index=True,
+            column_config={
+                "Paragraph": st.column_config.TextColumn("ID", width="small"),
+                "x_min": st.column_config.NumberColumn("x_min", step=1),
+                "y_min": st.column_config.NumberColumn("y_min", step=1),
+                "x_max": st.column_config.NumberColumn("x_max", step=1),
+                "y_max": st.column_config.NumberColumn("y_max", step=1),
+                "Preview": st.column_config.TextColumn("Preview", width="medium"),
+            },
         )
-
-        if current_vlm_text != vlm_raw_baseline and vlm_raw_baseline:
-            if st.button("Reset VLM text", key=f"reset_vlm_{index}"):
-                st.session_state[vlm_key] = vlm_raw_baseline
-                st.rerun()
+        st.session_state[bbox_session_key] = edited_bboxes
 
         confirm_label = (
             "✅ Confirm & Save Page"
@@ -2659,6 +2654,40 @@ def main() -> None:
                     st.rerun()
             else:
                 _execute_page_save(page_obj.model_dump(), output_path, index, total)
+
+    with col_ref:
+        highlighted_html = _render_highlighted_text(
+            current_text,
+            hard_mismatch_indices_by_para,
+            soft_mismatch_indices_by_para=soft_mismatch_indices_by_para,
+            missing_words_by_para=missing_words_by_para,
+            missing_paras_by_idx=missing_paras_by_idx,
+        )
+        with st.container(height=200, border=True):
+            st.markdown(highlighted_html, unsafe_allow_html=True)
+
+        if warnings:
+            icons = {"mismatch": "⚡", "soft_mismatch": "🔶", "orphan": "🔀"}
+            st.write(f"⚠️ {len(warnings)} Warning(s) & Discrepancies")
+            with st.container(height=200, border=True):
+                for w in warnings:
+                    icon = icons.get(w["type"], "⚠️")
+                    st.markdown(f"{icon} **{w['label']}** - {w['msg']}")
+        else:
+            st.success("✅ No mismatches detected.")
+
+        st.subheader("VLM Reference Text")
+        st.text_area(
+            "VLM Reference Text",
+            height=250,
+            key=vlm_key,
+            label_visibility="collapsed",
+        )
+
+        if current_vlm_text != vlm_raw_baseline and vlm_raw_baseline:
+            if st.button("Reset VLM text", key=f"reset_vlm_{index}"):
+                st.session_state[vlm_key] = vlm_raw_baseline
+                st.rerun()
 
     # -----------------------------------------------------------------------
     # Finalize section — always visible
