@@ -148,6 +148,11 @@ class TestOCRViet(unittest.TestCase):
         norm = normalize_text(raw)
         self.assertEqual(norm, "Đây là dòng 1 và dòng 2. Tiếp theo.\n")
 
+    def test_normalize_text_punctuation_spacing(self):
+        raw = "Giáng sinh , Chúa : lòng lành ( vô cùng ) ! và cứu chuộc ."
+        expected = "Giáng sinh, Chúa: lòng lành (vô cùng)! và cứu chuộc.\n"
+        self.assertEqual(normalize_text(raw), expected)
+
     def test_to_pil_image_and_to_image_bytes(self):
         if not CV2_PIL_AVAILABLE:
             self.skipTest("cv2/numpy not installed in current test environment")

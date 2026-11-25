@@ -18,6 +18,7 @@ from src.ppocr import (
     bbox_to_points,
     make_image_path,
     migrate_ocr_document_json,
+    normalize_transcription,
     ocr_page_to_ppocr,
     parse_header_paragraph,
     parse_label_txt,
@@ -592,6 +593,18 @@ class TestHeaderParsingAndPPOCRExport(unittest.TestCase):
         self.assertEqual(len(parsed), 1)
         self.assertEqual(parsed[0].annotations[0].document_page_number, 19)
         self.assertEqual(parsed[0].annotations[0].align_to, 459)
+
+    def test_normalize_transcription_punctuation_and_nfc(self) -> None:
+        raw = "Giáng sinh , Chúa : thương xót ( chúng ta ) ! và cứu chuộc ."
+        expected = "Giáng sinh, Chúa: thương xót (chúng ta)! và cứu chuộc."
+        self.assertEqual(normalize_transcription(raw), expected)
+
+    def test_annotation_validation_normalizes_punctuation(self) -> None:
+        ann = PPOCRLabelAnnotation(
+            transcription="Giáng sinh , Chúa",
+            points=[[0, 0], [10, 0], [10, 10], [0, 10]],
+        )
+        self.assertEqual(ann.transcription, "Giáng sinh, Chúa")
 
 
 if __name__ == "__main__":

@@ -30,6 +30,32 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 
+def normalize_transcription(text: str) -> str:
+    """Normalize text with NFC and correct punctuation formatting.
+
+    - Applies Unicode NFC normalization.
+    - Replaces newlines with spaces.
+    - Removes spaces before closing punctuation: , . : ; ! ? % ) ] }
+    - Removes spaces after opening punctuation: ( [ {
+    - Collapses multiple horizontal whitespace characters to a single space.
+    - Strips leading and trailing whitespace.
+
+    Example:
+        >>> normalize_transcription("Giáng sinh , Chúa")
+        'Giáng sinh, Chúa'
+        >>> normalize_transcription("Lời nói ( trong ngoặc ) !")
+        'Lời nói (trong ngoặc)!'
+    """
+    normalized = unicodedata.normalize("NFC", text).replace("\n", " ")
+    # Remove space before closing punctuation / marks
+    normalized = re.sub(r"[ \t]+([,.:;!?%)\]}])", r"\1", normalized)
+    # Remove space after opening brackets
+    normalized = re.sub(r"([(\[{])[ \t]+", r"\1", normalized)
+    # Collapse multiple spaces/tabs
+    normalized = re.sub(r"[ \t]+", " ", normalized).strip()
+    return normalized
+
+
 class PPOCRLabelAnnotation(BaseModel):
     """A single PPOCRLabel annotation with transcription and four bounding-box points.
 
@@ -50,7 +76,7 @@ class PPOCRLabelAnnotation(BaseModel):
     @field_validator("transcription")
     @classmethod
     def _validate_transcription(cls, v: str) -> str:
-        normalized = unicodedata.normalize("NFC", v).replace("\n", " ").strip()
+        normalized = normalize_transcription(v)
         if not normalized:
             raise ValueError("transcription must be non-empty after NFC normalization")
         return normalized
@@ -209,9 +235,7 @@ def ocr_page_to_ppocr(
     for para in paragraphs:
         if para.bbox is None:
             continue
-        transcription = (
-            unicodedata.normalize("NFC", para.text).replace("\n", " ").strip()
-        )
+        transcription = normalize_transcription(para.text)
         if not transcription:
             continue
         annotations.append(
@@ -566,6 +590,7 @@ __all__ = [
     "bbox_to_points",
     "make_image_path",
     "migrate_ocr_document_json",
+    "normalize_transcription",
     "ocr_page_to_ppocr",
     "parse_header_paragraph",
     "parse_label_txt",

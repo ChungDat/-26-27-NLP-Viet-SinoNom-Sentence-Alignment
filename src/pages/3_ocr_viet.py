@@ -40,6 +40,7 @@ try:
     from ..ppocr import (
         PPOCRLabelPage,
         make_image_path,
+        normalize_transcription,
         ocr_page_to_ppocr,
         parse_header_paragraph,
         write_file_state_txt,
@@ -49,6 +50,7 @@ except ImportError:
     from ppocr import (  # type: ignore[no-redef]
         PPOCRLabelPage,
         make_image_path,
+        normalize_transcription,
         ocr_page_to_ppocr,
         parse_header_paragraph,
         write_file_state_txt,
@@ -116,15 +118,16 @@ def _image_to_pil(image: np.ndarray) -> Image.Image:
 
 
 def _split_paragraphs(text: str) -> list[str]:
-    """Split text into paragraphs on blank lines; strip empty results.
+    """Split text into paragraphs on blank lines; strip empty results and normalize text.
 
     Args:
         text: Multi-paragraph text with blank-line paragraph separators.
 
     Returns:
-        List of non-empty paragraph strings.
+        List of non-empty paragraph strings with NFC and punctuation normalization.
     """
-    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    raw_paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    return [normalize_transcription(p) for p in raw_paras if normalize_transcription(p)]
 
 
 def _draw_paragraph_bboxes(
