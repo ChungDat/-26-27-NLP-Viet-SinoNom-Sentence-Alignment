@@ -288,6 +288,162 @@ def _sync_paragraph_bboxes(
     return synced
 
 
+def _clamp_bbox_pair(low: object, high: object, max_bound: int) -> tuple[int, int]:
+    """Clamp and order a (min, max) coordinate pair within [0, max_bound]."""
+    try:
+        v_low = int(low) if low is not None else 0
+    except (TypeError, ValueError):
+        v_low = 0
+    try:
+        v_high = int(high) if high is not None else 0
+    except (TypeError, ValueError):
+        v_high = 0
+    v_low = max(0, min(v_low, max_bound))
+    v_high = max(0, min(v_high, max_bound))
+    if v_low > v_high:
+        v_low, v_high = v_high, v_low
+    return v_low, v_high
+
+
+def _on_bbox_slider_change(
+    bbox_key: str,
+    para_idx: int,
+    slider_key: str,
+    min_key: str,
+    max_key: str,
+    min_field: str,
+    max_field: str,
+) -> None:
+    """Sync number inputs and bbox session state when a range slider changes."""
+    v_low, v_high = st.session_state[slider_key]
+    st.session_state[min_key] = int(v_low)
+    st.session_state[max_key] = int(v_high)
+    rows = st.session_state.get(bbox_key, [])
+    if para_idx < len(rows):
+        rows[para_idx][min_field] = int(v_low)
+        rows[para_idx][max_field] = int(v_high)
+
+
+def _on_bbox_inputs_change(
+    bbox_key: str,
+    para_idx: int,
+    slider_key: str,
+    min_key: str,
+    max_key: str,
+    min_field: str,
+    max_field: str,
+    max_bound: int,
+) -> None:
+    """Sync range slider and bbox session state when a numeric input changes."""
+    v_low, v_high = _clamp_bbox_pair(
+        st.session_state.get(min_key, 0),
+        st.session_state.get(max_key, 0),
+        max_bound,
+    )
+    st.session_state[min_key] = v_low
+    st.session_state[max_key] = v_high
+    st.session_state[slider_key] = (v_low, v_high)
+    rows = st.session_state.get(bbox_key, [])
+    if para_idx < len(rows):
+        rows[para_idx][min_field] = v_low
+        rows[para_idx][max_field] = v_high
+
+
+def _render_paragraph_bbox_controls(
+    index: int,
+    synced_bbox_rows: list[dict],
+    bbox_session_key: str,
+    img_width: int,
+    img_height: int,
+) -> None:
+    """Render per-paragraph tabs with X/Y range sliders and numeric inputs."""
+    if not synced_bbox_rows:
+        st.caption("No paragraphs detected to adjust bounding boxes.")
+        return
+
+    max_x = max(1, int(img_width))
+    max_y = max(1, int(img_height))
+    tab_labels = [
+        row.get("Paragraph", f"P{i + 1}") for i, row in enumerate(synced_bbox_rows)
+    ]
+    tabs = st.tabs(tab_labels)
+
+    axes = (
+        ("X range", "x_min", "x_max", max_x, "x"),
+        ("Y range", "y_min", "y_max", max_y, "y"),
+    )
+    for i, (tab, row) in enumerate(zip(tabs, synced_bbox_rows)):
+        with tab:
+            for label, min_field, max_field, max_bound, axis_tag in axes:
+                slider_key = f"ocr_bbox_ctrl_{index}_{i}_{axis_tag}_slider"
+                min_key = f"ocr_bbox_ctrl_{index}_{i}_{min_field}"
+                max_key = f"ocr_bbox_ctrl_{index}_{i}_{max_field}"
+
+                v_low, v_high = _clamp_bbox_pair(
+                    row.get(min_field), row.get(max_field), max_bound
+                )
+                st.session_state[slider_key] = (v_low, v_high)
+                st.session_state[min_key] = v_low
+                st.session_state[max_key] = v_high
+
+                st.slider(
+                    label,
+                    min_value=0,
+                    max_value=max_bound,
+                    step=1,
+                    key=slider_key,
+                    on_change=_on_bbox_slider_change,
+                    args=(
+                        bbox_session_key,
+                        i,
+                        slider_key,
+                        min_key,
+                        max_key,
+                        min_field,
+                        max_field,
+                    ),
+                )
+                col_min, col_max = st.columns(2)
+                with col_min:
+                    st.number_input(
+                        min_field,
+                        min_value=0,
+                        max_value=max_bound,
+                        step=1,
+                        key=min_key,
+                        on_change=_on_bbox_inputs_change,
+                        args=(
+                            bbox_session_key,
+                            i,
+                            slider_key,
+                            min_key,
+                            max_key,
+                            min_field,
+                            max_field,
+                            max_bound,
+                        ),
+                    )
+                with col_max:
+                    st.number_input(
+                        max_field,
+                        min_value=0,
+                        max_value=max_bound,
+                        step=1,
+                        key=max_key,
+                        on_change=_on_bbox_inputs_change,
+                        args=(
+                            bbox_session_key,
+                            i,
+                            slider_key,
+                            min_key,
+                            max_key,
+                            min_field,
+                            max_field,
+                            max_bound,
+                        ),
+                    )
+
+
 def _build_ocr_page(
     text: str,
     pdf_page_number: int,
@@ -467,7 +623,7 @@ def _clear_ocr_session_state() -> None:
                 "ocr_vlm_widget_",
                 "image_view_mode_",
                 "ocr_bbox_list_",
-                "ocr_bbox_editor_",
+                "ocr_bbox_ctrl_",
             )
         ):
             del st.session_state[key]
@@ -987,7 +1143,7 @@ _EDITABLE_HTML_BOX_CSS = """
 .ocr-editable-box {
     box-sizing: border-box;
     width: 100%;
-    height: 250px;
+    height: 550px;
     overflow-y: auto;
     padding: 0.75rem;
     border: 1px solid var(--st-border-color, rgba(49, 51, 63, 0.2));
@@ -1894,7 +2050,7 @@ def main() -> None:
                 st.number_input(
                     "Min bbox width (px)",
                     min_value=0,
-                    value=5,
+                    value=1,
                     step=1,
                     key="bbox_min_width",
                 )
@@ -2459,6 +2615,9 @@ def main() -> None:
                 st.session_state.pop(editor_key, None)
                 st.session_state.pop(f"ocr_vlm_widget_{index}", None)
                 st.session_state.pop(bbox_session_key, None)
+                for k in list(st.session_state.keys()):
+                    if k.startswith(f"ocr_bbox_ctrl_{index}_"):
+                        del st.session_state[k]
                 st.rerun()
 
         # Load active image on-demand for display
@@ -2470,6 +2629,10 @@ def main() -> None:
 
         # Choose what to display
         preprocessed_image = page_data.get("preprocessed_image")
+        base_img = (
+            preprocessed_image if preprocessed_image is not None else current_image
+        )
+        img_width, img_height = _image_to_pil(base_img).size
         if view_mode == "Words (Annotated)":
             if tess_error:
                 st.error(f"Tesseract failed: {tess_error}")
@@ -2569,21 +2732,13 @@ def main() -> None:
 
         st.subheader("Paragraph Bounding Boxes")
         st.caption("Adjust (x_min, y_min, x_max, y_max) for each paragraph.")
-        edited_bboxes = st.data_editor(
-            synced_bbox_rows,
-            key=f"ocr_bbox_editor_{index}",
-            disabled=["Paragraph", "Preview"],
-            hide_index=True,
-            column_config={
-                "Paragraph": st.column_config.TextColumn("ID", width="small"),
-                "x_min": st.column_config.NumberColumn("x_min", step=1),
-                "y_min": st.column_config.NumberColumn("y_min", step=1),
-                "x_max": st.column_config.NumberColumn("x_max", step=1),
-                "y_max": st.column_config.NumberColumn("y_max", step=1),
-                "Preview": st.column_config.TextColumn("Preview", width="medium"),
-            },
+        _render_paragraph_bbox_controls(
+            index=index,
+            synced_bbox_rows=synced_bbox_rows,
+            bbox_session_key=bbox_session_key,
+            img_width=img_width,
+            img_height=img_height,
         )
-        st.session_state[bbox_session_key] = edited_bboxes
 
         confirm_label = (
             "✅ Confirm & Save Page"
