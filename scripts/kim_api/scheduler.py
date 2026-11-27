@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import hashlib
 import json
 import logging
 import mimetypes
@@ -104,11 +105,21 @@ class TaskRecord:
 class StateStore:
     """SQLite persistence for task checkpoints and API request timestamps."""
 
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, quota_db_path: Path | None = None) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         self._conn.row_factory = sqlite3.Row
+
+        if quota_db_path is not None and Path(quota_db_path).resolve() != self.db_path.resolve():
+            self.quota_db_path = Path(quota_db_path)
+            self.quota_db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._quota_conn = sqlite3.connect(str(self.quota_db_path), timeout=30.0)
+            self._quota_conn.row_factory = sqlite3.Row
+        else:
+            self.quota_db_path = self.db_path
+            self._quota_conn = self._conn
+
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -130,23 +141,42 @@ class StateStore:
                 """
             )
             self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
+            )
+
+        with self._quota_conn:
+            self._quota_conn.execute("PRAGMA journal_mode=WAL;")
+            self._quota_conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS request_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp REAL NOT NULL,
                     endpoint TEXT NOT NULL,
-                    status_code INTEGER
+                    status_code INTEGER,
+                    token_id TEXT NOT NULL DEFAULT 'default'
                 )
                 """
             )
-            self._conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
-            )
-            self._conn.execute(
+            cols = {
+                row["name"]
+                for row in self._quota_conn.execute(
+                    "PRAGMA table_info(request_logs)"
+                ).fetchall()
+            }
+            if "token_id" not in cols:
+                self._quota_conn.execute(
+                    "ALTER TABLE request_logs ADD COLUMN token_id TEXT NOT NULL DEFAULT 'default'"
+                )
+            self._quota_conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_req_ts ON request_logs(timestamp)"
+            )
+            self._quota_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_req_token_ts ON request_logs(token_id, timestamp)"
             )
 
     def close(self) -> None:
+        if self._quota_conn is not self._conn:
+            self._quota_conn.close()
         self._conn.close()
 
     def sync_images(self, image_paths: list[Path]) -> int:
@@ -276,24 +306,33 @@ class StateStore:
             counts[str(row["status"])] = int(row["cnt"])
         return counts
 
-    def record_request(self, endpoint: str, status_code: int | None, ts: float | None = None) -> None:
+    def record_request(
+        self,
+        endpoint: str,
+        status_code: int | None,
+        ts: float | None = None,
+        token_id: str = "default",
+    ) -> None:
         now = time.time() if ts is None else ts
-        with self._conn:
-            self._conn.execute(
-                "INSERT INTO request_logs (timestamp, endpoint, status_code) VALUES (?, ?, ?)",
-                (now, endpoint, status_code),
+        with self._quota_conn:
+            self._quota_conn.execute(
+                "INSERT INTO request_logs (timestamp, endpoint, status_code, token_id) VALUES (?, ?, ?, ?)",
+                (now, endpoint, status_code, token_id),
             )
 
-    def get_request_timestamps_since(self, since_ts: float) -> list[float]:
-        rows = self._conn.execute(
-            "SELECT timestamp FROM request_logs WHERE timestamp >= ? ORDER BY timestamp ASC",
-            (since_ts,),
+    def get_request_timestamps_since(
+        self, since_ts: float, token_id: str = "default"
+    ) -> list[float]:
+        rows = self._quota_conn.execute(
+            "SELECT timestamp FROM request_logs WHERE token_id = ? AND timestamp >= ? ORDER BY timestamp ASC",
+            (token_id, since_ts),
         ).fetchall()
         return [float(row["timestamp"]) for row in rows]
 
-    def get_last_request_timestamp(self) -> float | None:
-        row = self._conn.execute(
-            "SELECT MAX(timestamp) AS max_ts FROM request_logs"
+    def get_last_request_timestamp(self, token_id: str = "default") -> float | None:
+        row = self._quota_conn.execute(
+            "SELECT MAX(timestamp) AS max_ts FROM request_logs WHERE token_id = ?",
+            (token_id,),
         ).fetchone()
         if row is None or row["max_ts"] is None:
             return None
@@ -301,8 +340,8 @@ class StateStore:
 
     def prune_old_requests(self, older_than_seconds: int = 604800) -> int:
         cutoff = time.time() - older_than_seconds
-        with self._conn:
-            cur = self._conn.execute(
+        with self._quota_conn:
+            cur = self._quota_conn.execute(
                 "DELETE FROM request_logs WHERE timestamp < ?", (cutoff,)
             )
             return cur.rowcount
@@ -316,16 +355,20 @@ class RateLimiter:
         store: StateStore,
         config: QuotaConfig,
         stop_event: threading.Event | None = None,
+        token_id: str = "default",
     ) -> None:
         self.store = store
         self.config = config
         self.stop_event = stop_event or threading.Event()
+        self.token_id = token_id
 
     def get_usage_summary(self, now: float | None = None) -> dict[str, tuple[int, int]]:
         """Return {window_label: (used, limit)} for all configured windows."""
         now = time.time() if now is None else now
         max_window = max(w for _, w, _ in self.config.windows())
-        timestamps = self.store.get_request_timestamps_since(now - max_window)
+        timestamps = self.store.get_request_timestamps_since(
+            now - max_window, token_id=self.token_id
+        )
         summary: dict[str, tuple[int, int]] = {}
         for label, window_sec, limit in self.config.windows():
             cutoff = now - window_sec
@@ -339,7 +382,7 @@ class RateLimiter:
         max_wait = 0.0
         reason: str | None = None
 
-        last_ts = self.store.get_last_request_timestamp()
+        last_ts = self.store.get_last_request_timestamp(token_id=self.token_id)
         if last_ts is not None and self.config.min_delay > 0:
             elapsed = now - last_ts
             if elapsed < self.config.min_delay:
@@ -349,7 +392,9 @@ class RateLimiter:
                     reason = f"min-delay ({self.config.min_delay:.1f}s)"
 
         max_window = max(w for _, w, _ in self.config.windows())
-        timestamps = self.store.get_request_timestamps_since(now - max_window)
+        timestamps = self.store.get_request_timestamps_since(
+            now - max_window, token_id=self.token_id
+        )
 
         for label, window_sec, limit in self.config.windows():
             if limit <= 0:
@@ -657,6 +702,11 @@ def discover_images(input_dir: Path) -> list[Path]:
     return images
 
 
+def compute_token_id(token: str) -> str:
+    """Return a short deterministic SHA-256 identifier for a Bearer token."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
 def resolve_token(cli_token: str | None, interactive: bool = True) -> str:
     """Resolve Bearer token from CLI arg, .env/environment, or interactive prompt."""
     load_dotenv()
@@ -768,9 +818,13 @@ def run_scheduler(
                 LOGGER.info("[Upload] %s", image_path.name)
                 try:
                     remote_name, status_code = client.upload_image(image_path)
-                    store.record_request(UPLOAD_ENDPOINT, status_code)
+                    store.record_request(
+                        UPLOAD_ENDPOINT, status_code, token_id=limiter.token_id
+                    )
                 except TransientAPIError as exc:
-                    store.record_request(UPLOAD_ENDPOINT, None)
+                    store.record_request(
+                        UPLOAD_ENDPOINT, None, token_id=limiter.token_id
+                    )
                     raise exc
                 store.mark_uploaded(task.id, remote_name)
                 LOGGER.info("[Upload OK] %s -> %s", image_path.name, remote_name)
@@ -786,9 +840,11 @@ def run_scheduler(
                     lang_type=lang_type,
                     reading_direction=reading_direction,
                 )
-                store.record_request(OCR_ENDPOINT, status_code)
+                store.record_request(
+                    OCR_ENDPOINT, status_code, token_id=limiter.token_id
+                )
             except TransientAPIError as exc:
-                store.record_request(OCR_ENDPOINT, None)
+                store.record_request(OCR_ENDPOINT, None, token_id=limiter.token_id)
                 raise exc
 
             json_path, txt_path = save_ocr_outputs(
@@ -871,7 +927,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--state-db",
         type=Path,
         default=None,
-        help="Path to SQLite state DB (default: <output-dir>/scheduler_state.db).",
+        help="Path to SQLite task state DB (default: <output-dir>/scheduler_state.db).",
+    )
+    parser.add_argument(
+        "--quota-db",
+        type=Path,
+        default=Path.home() / ".cache" / "kimhanom_quota.db",
+        help="Path to shared SQLite quota DB per token (default: ~/.cache/kimhanom_quota.db).",
     )
     parser.add_argument(
         "--log-file",
@@ -977,8 +1039,15 @@ def main(argv: list[str] | None = None) -> int:
         min_delay=args.min_delay,
     )
 
-    store = StateStore(state_db)
-    limiter = RateLimiter(store=store, config=quota_cfg, stop_event=stop_event)
+    store = StateStore(state_db, quota_db_path=args.quota_db)
+
+    # Resolve token_id early if available so --status/--dry-run show that token's quota.
+    load_dotenv()
+    raw_token_for_id = (args.token or os.getenv("TOKEN") or "").strip()
+    token_id = compute_token_id(raw_token_for_id) if raw_token_for_id else "default"
+    limiter = RateLimiter(
+        store=store, config=quota_cfg, stop_event=stop_event, token_id=token_id
+    )
 
     try:
         if args.retry_failed:
@@ -997,6 +1066,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         token = resolve_token(args.token, interactive=not args.daemon)
+        limiter.token_id = compute_token_id(token)
         client = KimHanNomClient(token=token)
 
         return run_scheduler(

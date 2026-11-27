@@ -209,6 +209,47 @@ class TestOutputsAndScheduler(unittest.TestCase):
         self.assertEqual(counts[scheduler.STATUS_PENDING], 1)
         self.assertEqual(counts[scheduler.STATUS_FAILED], 0)
 
+    def test_per_token_quota_isolation(self) -> None:
+        cfg = scheduler.QuotaConfig(
+            per_minute=2, per_hour=10, per_day=20, per_week=50, min_delay=0.0
+        )
+        tok_a = scheduler.compute_token_id("token-alpha")
+        tok_b = scheduler.compute_token_id("token-beta")
+        lim_a = scheduler.RateLimiter(self.store, cfg, token_id=tok_a)
+        lim_b = scheduler.RateLimiter(self.store, cfg, token_id=tok_b)
+
+        now = time.time()
+        self.store.record_request("/upload", 200, ts=now - 10.0, token_id=tok_a)
+        self.store.record_request("/ocr", 200, ts=now - 5.0, token_id=tok_a)
+
+        wait_a, reason_a = lim_a.compute_wait_seconds(now=now)
+        wait_b, reason_b = lim_b.compute_wait_seconds(now=now)
+        self.assertGreater(wait_a, 0.0)
+        self.assertIn("1m", reason_a or "")
+        self.assertEqual(wait_b, 0.0)
+        self.assertIsNone(reason_b)
+
+    def test_shared_quota_db_across_folders(self) -> None:
+        quota_db = self.root / "shared_quota.db"
+        store1 = scheduler.StateStore(self.root / "folder1.db", quota_db_path=quota_db)
+        store2 = scheduler.StateStore(self.root / "folder2.db", quota_db_path=quota_db)
+        try:
+            tok = scheduler.compute_token_id("shared-token")
+            now = time.time()
+            store1.record_request("/upload", 200, ts=now - 5.0, token_id=tok)
+            store1.record_request("/ocr", 200, ts=now - 2.0, token_id=tok)
+
+            cfg = scheduler.QuotaConfig(
+                per_minute=2, per_hour=10, per_day=20, per_week=50, min_delay=0.0
+            )
+            lim2 = scheduler.RateLimiter(store2, cfg, token_id=tok)
+            wait, reason = lim2.compute_wait_seconds(now=now)
+            self.assertGreater(wait, 0.0)
+            self.assertIn("1m", reason or "")
+        finally:
+            store1.close()
+            store2.close()
+
 
 if __name__ == "__main__":
     unittest.main()
