@@ -331,4 +331,7 @@ T1_Sách Truyện Các Thánh (Tháng 3) (491 trang)
 - Việt: 5 - 245
 - Hán Nôm: 248 - 488
 - Extra: 1 - 4, 246 - 247, 489 - 491
-- Phần Quốc ngữ của Tháng 3 có offset 2, phần chữ Nôm offset 3
+- Phần Quốc ngữ của Tháng 3 có offset 2, tới trang PDF 93 có offset 4, phần chữ Nôm offset 3
+  - PDF trang 92.jpg (thì tài liệu là trang 94), trang 93.jpg thì tài liệu là trang 97
+  - PDF trang 101.jpg thì tài liệu là trang 95, trang 102.jpg thì tài liệu là trang 96
+  - Tới 103.jpg thì offset 2 trở lại

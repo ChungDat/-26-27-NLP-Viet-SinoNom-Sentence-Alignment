@@ -1495,18 +1495,61 @@ def _perform_save_document(
     return len(confirmed_page_objs), out_path
 
 
+def _resolve_export_image_path(
+    page: OCRPage,
+    document_name: str,
+    language: str,
+    image_paths: list[Path] | None = None,
+    export_dir: str | Path | None = None,
+) -> str:
+    """Resolve the relative ``<language>/<filename>`` image path for PPOCR export.
+
+    Prefers matching the original on-disk image filename (from *image_paths* or
+    the document/export directory) by ``page.pdf_page_number`` so the exported
+    path matches the original image name rather than the offset-adjusted
+    ``document_page_number``. Falls back to :func:`make_image_path` with
+    ``page.pdf_page_number``.
+    """
+    candidates = list(image_paths) if image_paths else []
+    if not candidates:
+        search_dirs: list[Path] = []
+        if document_name:
+            search_dirs.append(Path(document_name) / language)
+        if export_dir:
+            search_dirs.append(Path(export_dir))
+        for d in search_dirs:
+            if d.is_dir():
+                candidates = sorted(d.glob(f"{document_name}.{page.pdf_page_number:03d}*"))
+                if candidates:
+                    break
+
+    for p in candidates:
+        parts = p.stem.split(".")
+        if len(parts) >= 2:
+            try:
+                p_num = int(parts[-1].split("_")[0])
+                if p_num == page.pdf_page_number:
+                    return f"{language}/{p.name}"
+            except ValueError:
+                continue
+
+    return make_image_path(document_name, language, page.pdf_page_number)
+
+
 def _perform_export_ppocr(
     export_dir: str,
     document_name: str,
     language: str,
     overwrite: bool = False,
+    image_paths: list[Path] | None = None,
 ) -> tuple[int, Path, Path]:
     """Export confirmed pages as PPOCRLabel Label.txt and fileState.txt.
 
-    Image paths are built using :func:`make_image_path` from document metadata
-    stored in session state. The header paragraph (first paragraph) is parsed
-    for document_page_number and align_to, and is omitted from the exported
-    Label.txt annotations along with its bounding box.
+    Image paths are resolved from the original on-disk image filenames (or
+    :func:`make_image_path` using ``pdf_page_number``) rather than the
+    offset-adjusted ``document_page_number``. The header paragraph (first
+    paragraph) is parsed for ``document_page_number`` and ``align_to``, and is
+    omitted from the exported Label.txt annotations along with its bounding box.
 
     Args:
         export_dir: Directory in which to write ``Label.txt`` and
@@ -1515,6 +1558,7 @@ def _perform_export_ppocr(
         language: Language folder (from ``st.session_state.document_language``).
         overwrite: When ``True`` existing output files are overwritten without
             prompting.
+        image_paths: Optional list of original on-disk image paths.
 
     Returns:
         A 3-tuple of ``(n_pages, label_path, state_path)``.
@@ -1527,7 +1571,7 @@ def _perform_export_ppocr(
     confirmed_page_objs = [OCRPage(**p) for p in confirmed_pages_raw if p is not None]
 
     ppocr_pages: list[PPOCRLabelPage] = []
-    for page in sorted(confirmed_page_objs, key=lambda p: p.document_page_number):
+    for page in sorted(confirmed_page_objs, key=lambda p: p.pdf_page_number):
         # Extract header info if present in first paragraph
         parsed_doc_page, parsed_align_to = None, None
         has_header = False
@@ -1545,7 +1589,13 @@ def _perform_export_ppocr(
             if parsed_doc_page is not None
             else page.document_page_number
         )
-        img_path = make_image_path(document_name, language, doc_page_to_use)
+        img_path = _resolve_export_image_path(
+            page,
+            document_name,
+            language,
+            image_paths=image_paths,
+            export_dir=export_dir,
+        )
         ppocr_page = ocr_page_to_ppocr(
             page,
             img_path,
@@ -1711,6 +1761,7 @@ if hasattr(st, "dialog"):
         export_dir: str,
         document_name: str,
         language: str,
+        image_paths: list[Path] | None = None,
     ) -> None:
         """Modal dialog to confirm overwriting existing PPOCRLabel export files.
 
@@ -1718,6 +1769,7 @@ if hasattr(st, "dialog"):
             export_dir: Directory containing existing Label.txt / fileState.txt.
             document_name: Document stem.
             language: Language folder.
+            image_paths: Optional list of original on-disk image paths.
         """
         st.warning(f"`Label.txt` or `fileState.txt` already exists in `{export_dir}`.")
         st.write("Do you want to overwrite the existing export?")
@@ -1726,7 +1778,11 @@ if hasattr(st, "dialog"):
             if st.button("Yes, Overwrite", type="primary", use_container_width=True):
                 try:
                     n_pages, label_p, state_p = _perform_export_ppocr(
-                        export_dir, document_name, language, overwrite=True
+                        export_dir,
+                        document_name,
+                        language,
+                        overwrite=True,
+                        image_paths=image_paths,
                     )
                     msg = f"Exported {n_pages} page(s) to `{label_p}` and `{state_p}`."
                     st.session_state["export_alert"] = ("success", msg)
@@ -1742,6 +1798,7 @@ def _handle_export_request(
     export_dir: str,
     document_name: str,
     language: str,
+    image_paths: list[Path] | None = None,
 ) -> None:
     """Handle a PPOCRLabel export request with overwrite protection.
 
@@ -1753,17 +1810,24 @@ def _handle_export_request(
         export_dir: Directory in which to write the export files.
         document_name: Document stem.
         language: Language folder.
+        image_paths: Optional list of original on-disk image paths.
     """
     label_p = Path(export_dir) / "Label.txt"
     state_p = Path(export_dir) / "fileState.txt"
     files_exist = label_p.exists() or state_p.exists()
 
     if files_exist:
-        _confirm_overwrite_export_dialog(export_dir, document_name, language)
+        _confirm_overwrite_export_dialog(
+            export_dir, document_name, language, image_paths=image_paths
+        )
     else:
         try:
             n_pages, label_out, state_out = _perform_export_ppocr(
-                export_dir, document_name, language, overwrite=True
+                export_dir,
+                document_name,
+                language,
+                overwrite=True,
+                image_paths=image_paths,
             )
             msg = f"Exported {n_pages} page(s) → `{label_out}` and `{state_out}`."
             st.session_state["export_alert"] = ("success", msg)
@@ -2911,7 +2975,9 @@ def main() -> None:
         type="primary",
         disabled=(n_confirmed == 0),
     ):
-        _handle_export_request(export_dir_input, source_name, language)
+        _handle_export_request(
+            export_dir_input, source_name, language, image_paths=image_paths
+        )
 
 
 if __name__ == "__main__":
